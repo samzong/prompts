@@ -1,5 +1,9 @@
-.logo.leptos:hover {
-  filter: drop-shadow(0 0 2em #a82e20);
+.logo.vite:hover {
+  filter: drop-shadow(0 0 2em #747bff);
+}
+
+.logo.react:hover {
+  filter: drop-shadow(0 0 2em #61dafb);
 }
 :root {
   font-family: Inter, Avenir, Helvetica, Arial, sans-serif;

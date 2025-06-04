@@ -2,15 +2,14 @@
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "prompts",
   "version": "0.1.0",
-  "identifier": "samzong",
+  "identifier": "com.samzong.app",
   "build": {
-    "beforeDevCommand": "trunk serve",
+    "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "trunk build",
+    "beforeBuildCommand": "npm run build",
     "frontendDist": "../dist"
   },
   "app": {
-    "withGlobalTauri": true,
     "windows": [
       {
         "title": "prompts",

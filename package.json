@@ -1,19 +1,29 @@
 {
-  "name": "prompts",
+  "name": "prompt-snippets-manager",
   "private": true,
   "version": "0.1.0",
+  "description": "System-level prompt management tool for macOS",
+  "author": "Samzong",
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
+    "tauri:build:debug": "tauri build --debug",
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "lint:fix": "eslint . --ext ts,tsx --fix",
+    "type-check": "tsc --noEmit"
   },
   "dependencies": {
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "@tauri-apps/api": "^2",
-    "@tauri-apps/plugin-opener": "^2"
+    "@tauri-apps/plugin-opener": "^2",
+    "zustand": "^5.0.2"
   },
   "devDependencies": {
     "@types/react": "^18.3.1",
@@ -21,6 +31,18 @@
     "@vitejs/plugin-react": "^4.3.4",
     "typescript": "~5.6.2",
     "vite": "^6.0.3",
-    "@tauri-apps/cli": "^2"
-  }
+    "@tauri-apps/cli": "^2",
+    "tailwindcss": "^3.4.17",
+    "postcss": "^8.5.3",
+    "autoprefixer": "^10.4.20"
+  },
+  "keywords": [
+    "prompt",
+    "snippets",
+    "manager",
+    "macos",
+    "tauri",
+    "react",
+    "productivity"
+  ]
 }

@@ -79,7 +79,15 @@ build-app: build ## 构建 Tauri 应用
 
 # 多平台构建
 .PHONY: build-all
-build-all: ## 构建所有平台的安装包
+build-all: ## 构建主要平台的安装包（macOS M1, x86, Windows）
+	@echo "$(BLUE)开始构建主要平台...$(RESET)"
+	$(MAKE) build-macos-arm64
+	$(MAKE) build-macos-intel
+	$(MAKE) build-windows
+	@echo "$(GREEN)✅ 主要平台构建完成$(RESET)"
+
+.PHONY: build-all-platforms
+build-all-platforms: ## 构建所有平台的安装包（包括 Linux）
 	@echo "$(BLUE)开始构建所有平台...$(RESET)"
 	$(MAKE) build-linux
 	$(MAKE) build-macos-all
@@ -91,6 +99,13 @@ build-linux: ## 构建 Linux 平台安装包
 	@echo "$(BLUE)构建 Linux 平台...$(RESET)"
 	npm run tauri build -- --target x86_64-unknown-linux-gnu
 	@echo "$(GREEN)✅ Linux 构建完成$(RESET)"
+
+.PHONY: build-linux-docker
+build-linux-docker: ## 使用 Docker 构建 Linux 平台安装包
+	@echo "$(BLUE)使用 Docker 构建 Linux 平台...$(RESET)"
+	docker build -f Dockerfile.linux -t prompts-linux-builder .
+	docker run --rm -v "$(PWD)/src-tauri/target:/app/src-tauri/target" prompts-linux-builder
+	@echo "$(GREEN)✅ Linux Docker 构建完成$(RESET)"
 
 .PHONY: build-macos
 build-macos: ## 构建当前 macOS 架构

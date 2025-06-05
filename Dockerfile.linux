@@ -1,0 +1,35 @@
+# Dockerfile for Linux cross-compilation
+FROM ubuntu:22.04
+
+# 安装必要的系统依赖
+RUN apt-get update && apt-get install -y \
+    curl \
+    build-essential \
+    pkg-config \
+    libssl-dev \
+    libgtk-3-dev \
+    libwebkit2gtk-4.1-dev \
+    librsvg2-dev \
+    libappindicator3-dev \
+    patchelf \
+    && rm -rf /var/lib/apt/lists/*
+
+# 安装 Node.js
+RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
+    && apt-get install -y nodejs
+
+# 安装 Rust
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+ENV PATH="/root/.cargo/bin:$PATH"
+
+# 设置工作目录
+WORKDIR /app
+
+# 复制项目文件
+COPY . .
+
+# 安装依赖
+RUN npm install
+
+# 构建命令
+CMD ["npm", "run", "tauri", "build"] 

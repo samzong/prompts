@@ -6,11 +6,12 @@ import { useAppStore } from '../../store';
 
 interface MainLayoutProps {
   children: React.ReactNode;
-  currentView: 'main' | 'detail' | 'editor';
+  currentView: 'main' | 'detail' | 'editor' | 'settings';
   onNewPrompt?: () => void;
   onNewFolder?: () => void;
   onNewTag?: () => void;
   onBackToMain?: () => void;
+  onOpenSettings?: () => void;
   onDeleteFolder?: (folderId: string, folderName: string) => void;
   onDeleteTag?: (tagId: string, tagName: string) => void;
   onRenameFolder?: (folderId: string, currentName: string) => void;
@@ -24,6 +25,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
   onNewFolder,
   onNewTag,
   onBackToMain,
+  onOpenSettings,
   onDeleteFolder,
   onDeleteTag,
   onRenameFolder,
@@ -41,6 +43,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
           onNewFolder={onNewFolder}
           onNewTag={onNewTag}
           onBackToMain={onBackToMain}
+          onOpenSettings={onOpenSettings}
           onDeleteFolder={onDeleteFolder}
           onDeleteTag={onDeleteTag}
           onRenameFolder={onRenameFolder}

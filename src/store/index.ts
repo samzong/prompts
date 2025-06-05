@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { promptService } from '../services/promptService';
 import { importExportService, ImportResult, ExportOptions } from '../services/importExportService';
+import { settingsService } from '../services/settingsService';
 
 // Prompt数据类型定义
 export interface Prompt {
@@ -43,6 +44,22 @@ export interface ToastNotification {
   duration?: number;
 }
 
+// 设置类型定义
+export interface AppSettings {
+  globalShortcut: {
+    quickPicker: string; // 快捷键字符串，如 "CommandOrControl+Shift+P"
+    enabled: boolean;
+  };
+  appearance: {
+    theme: 'light' | 'dark' | 'system';
+  };
+  general: {
+    startAtLogin: boolean;
+    showInDock: boolean;
+    showTrayIcon: boolean;
+  };
+}
+
 // 应用状态接口
 interface AppState {
   prompts: Prompt[];
@@ -59,6 +76,7 @@ interface AppState {
   isSidebarCollapsed: boolean;
   loading: boolean;
   initialized: boolean;
+  settings: AppSettings;
   
   // 数据操作方法
   initializeApp: () => Promise<void>;
@@ -86,6 +104,11 @@ interface AppState {
   // Toast通知方法
   addToast: (message: string, type: 'success' | 'error' | 'info', duration?: number) => void;
   removeToast: (id: string) => void;
+  
+  // 设置管理方法
+  loadSettings: () => Promise<void>;
+  updateSettings: (updates: Partial<AppSettings>) => Promise<void>;
+  resetSettings: () => Promise<void>;
   
   getStatistics: () => Promise<{
     totalPrompts: number;
@@ -117,6 +140,22 @@ interface AppState {
   toggleMainWindow: () => void;
 }
 
+// 默认设置
+const defaultSettings: AppSettings = {
+  globalShortcut: {
+    quickPicker: 'CommandOrControl+Shift+P',
+    enabled: true,
+  },
+  appearance: {
+    theme: 'system',
+  },
+  general: {
+    startAtLogin: false,
+    showInDock: true,
+    showTrayIcon: true,
+  },
+};
+
 // 创建store
 export const useAppStore = create<AppState>((set, get) => ({
   // 初始状态
@@ -134,6 +173,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   isSidebarCollapsed: false,
   loading: false,
   initialized: false,
+  settings: defaultSettings,
   
   // 初始化应用
   initializeApp: async () => {
@@ -142,6 +182,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ loading: true });
     try {
       await promptService.initialize();
+      await get().loadSettings();
       await get().loadPrompts();
       await get().loadFolders();
       await get().loadTags();
@@ -541,5 +582,57 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((state) => ({
       toasts: state.toasts.filter(toast => toast.id !== id)
     }));
+  },
+
+  // 设置管理方法
+  loadSettings: async () => {
+    try {
+      await settingsService.initialize();
+      const savedSettings = await settingsService.loadSettings();
+      if (savedSettings) {
+        set({ settings: savedSettings });
+      }
+    } catch (error) {
+      console.error('Failed to load settings:', error);
+    }
+  },
+
+  updateSettings: async (updates) => {
+    try {
+      const currentSettings = get().settings;
+      const newSettings = { ...currentSettings, ...updates };
+      
+      // 如果更新了全局快捷键设置，需要同时更新后端
+      if (updates.globalShortcut) {
+        await settingsService.updateGlobalShortcut(
+          newSettings.globalShortcut.quickPicker,
+          newSettings.globalShortcut.enabled
+        );
+      }
+      
+      await settingsService.saveSettings(newSettings);
+      set({ settings: newSettings });
+    } catch (error) {
+      console.error('Failed to update settings:', error);
+      throw error;
+    }
+  },
+
+  resetSettings: async () => {
+    try {
+      const resetSettings = { ...defaultSettings };
+      await settingsService.saveSettings(resetSettings);
+      
+      // 重置全局快捷键
+      await settingsService.updateGlobalShortcut(
+        resetSettings.globalShortcut.quickPicker,
+        resetSettings.globalShortcut.enabled
+      );
+      
+      set({ settings: resetSettings });
+    } catch (error) {
+      console.error('Failed to reset settings:', error);
+      throw error;
+    }
   },
 })); 

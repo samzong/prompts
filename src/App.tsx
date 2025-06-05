@@ -4,13 +4,14 @@ import { MainLayout } from './components/layout/MainLayout';
 import { PromptCard } from './components/prompt/PromptCard';
 import { PromptDetailView } from './components/prompt/PromptDetailView';
 import { PromptEditor } from './components/prompt/PromptEditor';
+import { SettingsView } from './components/SettingsView';
 import { InputModal } from './components/ui/InputModal';
 import { ConfirmModal } from './components/ui/ConfirmModal';
 import { Toast } from './components/ui/Toast';
 import { useAppStore } from './store';
 
 // type ViewMode = 'grid' | 'list';
-type CurrentView = 'main' | 'detail' | 'editor';
+type CurrentView = 'main' | 'detail' | 'editor' | 'settings';
 
 interface ModalState {
   type: 'folder' | 'tag' | null;
@@ -324,6 +325,10 @@ function App() {
     setCurrentView('main');
   };
 
+  const handleOpenSettings = () => {
+    setCurrentView('settings');
+  };
+
   // 渲染主内容
   const renderMainContent = () => {
     switch (currentView) {
@@ -345,6 +350,9 @@ function App() {
             isEditing={!!editingPrompt}
           />
         );
+      
+      case 'settings':
+        return <SettingsView />;
       
       case 'main':
       default:
@@ -423,6 +431,7 @@ function App() {
         onNewFolder={handleNewFolder}
         onNewTag={handleNewTag}
         onBackToMain={handleBackToMain}
+        onOpenSettings={handleOpenSettings}
         onDeleteFolder={handleDeleteFolder}
         onDeleteTag={handleDeleteTag}
         onRenameFolder={handleRenameFolder}

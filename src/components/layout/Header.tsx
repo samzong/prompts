@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useAppStore } from '../../store';
 
 interface HeaderProps {
-  currentView: 'main' | 'detail' | 'editor';
+  currentView: 'main' | 'detail' | 'editor' | 'settings';
   onNewPrompt?: (() => void) | undefined;
   onNewFolder?: (() => void) | undefined;
   onNewTag?: (() => void) | undefined;
@@ -87,8 +87,8 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           )}
           
-          {/* 详情视图或编辑视图时显示返回按钮 */}
-          {(currentView === 'detail' || currentView === 'editor') && (
+          {/* 详情视图、编辑视图或设置视图时显示返回按钮 */}
+          {(currentView === 'detail' || currentView === 'editor' || currentView === 'settings') && (
             <button 
               onClick={onBackToMain}
               className="flex items-center space-x-2 px-3 py-1 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"

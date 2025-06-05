@@ -62,10 +62,13 @@ A free and open source prompt snippets manager for macOS Users. System-level pro
 
 ### 🔄 Next Phases
 
-### ✅ Phase 4: System Integration (IN PROGRESS)
+### ✅ Phase 4: System Integration (COMPLETED)
 
 **4.1 Global Shortcuts**
 - ✅ Global hotkey implementation (`Cmd+Shift+P` for QuickPicker)
+- ✅ Customizable global shortcuts with settings UI
+- ✅ Shortcut validation and conflict detection
+- ✅ Real-time shortcut recording interface
 
 **4.2 System Tray/Menu Bar**
 - ✅ Menu bar integration with tray icon
@@ -73,7 +76,15 @@ A free and open source prompt snippets manager for macOS Users. System-level pro
 - ✅ Right click to toggle main window
 - ✅ Dual access mode: main window + system tray
 
-**4.3 Clipboard Integration** (TODO)
+**4.3 Settings Management**
+- ✅ Dedicated settings page with organized sections
+- ✅ Global shortcut configuration
+- ✅ Appearance settings (theme selection)
+- ✅ General application preferences
+- ✅ Settings persistence and backup
+- ✅ Settings reset functionality
+
+**4.4 Clipboard Integration** (TODO)
 - [ ] Clipboard integration
 
 **Phase 5: Advanced Features** (TODO)
@@ -137,11 +148,24 @@ src/
 
 ## ⚙️ Settings & Preferences
 
-- Show menu bar icon
-- Launch at login
-- Show in Dock
-- Global Hotkey: Cmd+Shift+P
-- Storage: Local (~/.prompts/)
+### Global Shortcuts
+- **Quick Picker Shortcut**: Customizable global hotkey (default: `Cmd+Shift+P`)
+- **Enable/Disable**: Toggle global shortcuts on/off
+- **Real-time Recording**: Interactive shortcut input with validation
+
+### Appearance
+- **Theme Selection**: Light, Dark, or System theme
+- **UI Preferences**: Various visual customization options
+
+### General
+- **Launch at Login**: Start application automatically with system
+- **Show in Dock**: Control Dock icon visibility on macOS  
+- **Show Menu Bar Icon**: Control system tray/menu bar icon visibility
+- **Storage**: Local filesystem storage (~/.prompts/)
+
+### Data Management
+- **Settings Export/Import**: Backup and restore application settings
+- **Reset to Defaults**: One-click restoration of default settings
 
 ## 🎨 Design Principles
 

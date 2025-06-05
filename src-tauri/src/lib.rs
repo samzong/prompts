@@ -1,6 +1,124 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 use tauri::{WebviewUrl, WebviewWindowBuilder, Manager, WindowEvent};
 use tauri::tray::{TrayIconBuilder, MouseButton, MouseButtonState};
+use std::sync::{Mutex, OnceLock};
+use std::collections::HashMap;
+
+// 全局状态存储当前注册的快捷键
+static REGISTERED_SHORTCUTS: OnceLock<Mutex<HashMap<String, String>>> = OnceLock::new();
+
+#[tauri::command]
+async fn update_global_shortcut(app: tauri::AppHandle, shortcut: String, enabled: bool) -> Result<(), String> {
+    #[cfg(desktop)]
+    {
+        use tauri_plugin_global_shortcut::GlobalShortcutExt;
+        
+        // 获取或初始化全局状态
+        let registered_mutex = REGISTERED_SHORTCUTS.get_or_init(|| Mutex::new(HashMap::new()));
+        
+        // 解注册所有现有快捷键
+        let mut registered = registered_mutex.lock().map_err(|e| e.to_string())?;
+        for (_, old_shortcut) in registered.iter() {
+            // 解析快捷键字符串
+            if let Ok(parsed_shortcut) = parse_shortcut_string(old_shortcut) {
+                let _ = app.global_shortcut().unregister(parsed_shortcut);
+            }
+        }
+        registered.clear();
+        
+        // 如果启用，注册新的快捷键
+        if enabled && !shortcut.is_empty() {
+            match parse_shortcut_string(&shortcut) {
+                Ok(parsed_shortcut) => {
+                    app.global_shortcut().register(parsed_shortcut)
+                        .map_err(|e| format!("Failed to register shortcut: {}", e))?;
+                    registered.insert("quickPicker".to_string(), shortcut);
+                }
+                Err(e) => return Err(format!("Invalid shortcut format: {}", e))
+            }
+        }
+    }
+    
+    Ok(())
+}
+
+// 解析快捷键字符串
+#[cfg(desktop)]
+fn parse_shortcut_string(shortcut_str: &str) -> Result<tauri_plugin_global_shortcut::Shortcut, String> {
+    use tauri_plugin_global_shortcut::{Code, Modifiers, Shortcut};
+    
+    let parts: Vec<&str> = shortcut_str.split('+').collect();
+    if parts.is_empty() {
+        return Err("Empty shortcut".to_string());
+    }
+    
+    let mut modifiers = Modifiers::empty();
+    let key_str = parts.last().unwrap().trim();
+    
+    for part in &parts[..parts.len()-1] {
+        match part.trim() {
+            "CommandOrControl" | "Cmd" | "Command" => {
+                #[cfg(target_os = "macos")]
+                { modifiers |= Modifiers::META; }
+                #[cfg(not(target_os = "macos"))]
+                { modifiers |= Modifiers::CONTROL; }
+            },
+            "Ctrl" | "Control" => modifiers |= Modifiers::CONTROL,
+            "Alt" | "Option" => modifiers |= Modifiers::ALT,
+            "Shift" => modifiers |= Modifiers::SHIFT,
+            "Meta" => modifiers |= Modifiers::META,
+            _ => return Err(format!("Unknown modifier: {}", part.trim()))
+        }
+    }
+    
+    let code = match key_str.to_uppercase().as_str() {
+        "A" => Code::KeyA,
+        "B" => Code::KeyB,
+        "C" => Code::KeyC,
+        "D" => Code::KeyD,
+        "E" => Code::KeyE,
+        "F" => Code::KeyF,
+        "G" => Code::KeyG,
+        "H" => Code::KeyH,
+        "I" => Code::KeyI,
+        "J" => Code::KeyJ,
+        "K" => Code::KeyK,
+        "L" => Code::KeyL,
+        "M" => Code::KeyM,
+        "N" => Code::KeyN,
+        "O" => Code::KeyO,
+        "P" => Code::KeyP,
+        "Q" => Code::KeyQ,
+        "R" => Code::KeyR,
+        "S" => Code::KeyS,
+        "T" => Code::KeyT,
+        "U" => Code::KeyU,
+        "V" => Code::KeyV,
+        "W" => Code::KeyW,
+        "X" => Code::KeyX,
+        "Y" => Code::KeyY,
+        "Z" => Code::KeyZ,
+        "0" => Code::Digit0,
+        "1" => Code::Digit1,
+        "2" => Code::Digit2,
+        "3" => Code::Digit3,
+        "4" => Code::Digit4,
+        "5" => Code::Digit5,
+        "6" => Code::Digit6,
+        "7" => Code::Digit7,
+        "8" => Code::Digit8,
+        "9" => Code::Digit9,
+        "SPACE" => Code::Space,
+        "ENTER" => Code::Enter,
+        "TAB" => Code::Tab,
+        "ESCAPE" => Code::Escape,
+        "BACKSPACE" => Code::Backspace,
+        "DELETE" => Code::Delete,
+        _ => return Err(format!("Unknown key: {}", key_str))
+    };
+    
+    Ok(Shortcut::new(Some(modifiers), code))
+}
 
 #[tauri::command]
 async fn quit_app(app: tauri::AppHandle) -> Result<(), String> {
@@ -71,16 +189,16 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_os::init())
 
-        .invoke_handler(tauri::generate_handler![toggle_quick_picker, toggle_main_window, quit_app])
+        .invoke_handler(tauri::generate_handler![toggle_quick_picker, toggle_main_window, quit_app, update_global_shortcut])
         .setup(|app| {
             // 注册全局快捷键
             #[cfg(desktop)]
             {
-                use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
+                use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
                 
-                let shortcut = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyP);
-                
+                // 注册快捷键插件
                 app.handle().plugin(
                     tauri_plugin_global_shortcut::Builder::new()
                         .with_handler(move |app, _shortcut, event| {
@@ -96,7 +214,16 @@ pub fn run() {
                         .build(),
                 )?;
                 
-                app.global_shortcut().register(shortcut)?;
+                // 注册默认快捷键
+                if let Ok(default_shortcut) = parse_shortcut_string("CommandOrControl+Shift+P") {
+                    let _ = app.global_shortcut().register(default_shortcut);
+                    
+                    // 初始化注册表
+                    let registered_mutex = REGISTERED_SHORTCUTS.get_or_init(|| Mutex::new(HashMap::new()));
+                    if let Ok(mut registered) = registered_mutex.lock() {
+                        registered.insert("quickPicker".to_string(), "CommandOrControl+Shift+P".to_string());
+                    }
+                }
             }
 
             // 设置系统托盘

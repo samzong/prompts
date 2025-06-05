@@ -10,8 +10,7 @@ interface MainLayoutProps {
   onNewPrompt?: () => void;
   onNewFolder?: () => void;
   onNewTag?: () => void;
-  onBack?: () => void;
-  onNext?: () => void;
+  onBackToMain?: () => void;
 }
 
 export const MainLayout: React.FC<MainLayoutProps> = ({ 
@@ -20,8 +19,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
   onNewPrompt, 
   onNewFolder,
   onNewTag,
-  onBack, 
-  onNext 
+  onBackToMain
 }) => {
   const { isSidebarCollapsed } = useAppStore();
 
@@ -31,7 +29,11 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
       <div className={`${
         isSidebarCollapsed ? 'w-0' : 'w-64'
       } bg-white dark:bg-gray-800 shadow-sm border-r border-gray-200 dark:border-gray-700 flex flex-col transition-all duration-300 overflow-hidden`}>
-        <Navigation />
+        <Navigation 
+          onNewFolder={onNewFolder}
+          onNewTag={onNewTag}
+          onBackToMain={onBackToMain}
+        />
       </div>
 
       {/* 右侧内容区域 */}
@@ -41,8 +43,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
           onNewPrompt={onNewPrompt}
           onNewFolder={onNewFolder}
           onNewTag={onNewTag}
-          onBack={onBack}
-          onNext={onNext}
+          onBackToMain={onBackToMain}
         />
         
         {/* 内容区域 */}

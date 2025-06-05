@@ -56,6 +56,9 @@
           "handler": "toggle_quick_picker"
         }
       ]
+    },
+    "fs": {
+      "requireLiteralLeadingDot": false
     }
   }
 }

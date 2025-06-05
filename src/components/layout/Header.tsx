@@ -6,8 +6,7 @@ interface HeaderProps {
   onNewPrompt?: (() => void) | undefined;
   onNewFolder?: (() => void) | undefined;
   onNewTag?: (() => void) | undefined;
-  onBack?: (() => void) | undefined;
-  onNext?: (() => void) | undefined;
+  onBackToMain?: (() => void) | undefined;
 }
 
 export const Header: React.FC<HeaderProps> = ({ 
@@ -15,8 +14,7 @@ export const Header: React.FC<HeaderProps> = ({
   onNewPrompt, 
   onNewFolder,
   onNewTag,
-  onBack, 
-  onNext 
+  onBackToMain
 }) => {
   const { 
     searchQuery, 
@@ -89,28 +87,18 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           )}
           
-          {/* 详情视图时显示导航箭头 */}
-          {currentView === 'detail' && (
-            <div className="flex items-center space-x-1">
-              <button 
-                onClick={onBack}
-                className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-                title="Previous Prompt"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-              </button>
-              <button 
-                onClick={onNext}
-                className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-                title="Next Prompt"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </button>
-            </div>
+          {/* 详情视图或编辑视图时显示返回按钮 */}
+          {(currentView === 'detail' || currentView === 'editor') && (
+            <button 
+              onClick={onBackToMain}
+              className="flex items-center space-x-2 px-3 py-1 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+              title="Back to List"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+              <span>Back</span>
+            </button>
           )}
         </div>
 

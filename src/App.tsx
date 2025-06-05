@@ -1,14 +1,75 @@
-import { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { MainLayout } from './components/layout/MainLayout';
+import { PromptCard } from './components/prompt/PromptCard';
+import { PromptDetailView } from './components/prompt/PromptDetailView';
+import { PromptEditor } from './components/prompt/PromptEditor';
+import { InputModal } from './components/ui/InputModal';
+import { Toast } from './components/ui/Toast';
 import { useAppStore } from './store';
-import { MainLayout, PromptCard, PromptDetailView, PromptEditor } from './components';
 
 // type ViewMode = 'grid' | 'list';
 type CurrentView = 'main' | 'detail' | 'editor';
 
+interface ModalState {
+  type: 'folder' | 'tag' | null;
+  isOpen: boolean;
+}
+
 function App() {
-  const { prompts, searchQuery, selectedPrompt, setSelectedPrompt, addPrompt, updatePrompt, deletePrompt, view, selectedTags } = useAppStore();
+  const { 
+    prompts, 
+    toasts,
+    searchQuery, 
+    selectedPrompt, 
+    selectedFolderId,
+    initialized,
+    setSelectedPrompt, 
+    createPrompt, 
+    updatePrompt, 
+    deletePrompt, 
+    copyPromptContent,
+    createFolder,
+    createTag,
+    addToast,
+    removeToast,
+    initializeApp,
+    view, 
+    selectedTags 
+  } = useAppStore();
+  
   const [currentView, setCurrentView] = useState<CurrentView>('main');
   const [editingPrompt, setEditingPrompt] = useState<any>(null);
+  const [modalState, setModalState] = useState<ModalState>({ type: null, isOpen: false });
+
+  // 应用初始化
+  useEffect(() => {
+    const init = async () => {
+      try {
+        await initializeApp();
+      } catch (error) {
+        console.error('Failed to initialize app:', error);
+      }
+    };
+    
+    init();
+  }, [initializeApp]);
+
+  // 如果应用未初始化，显示加载界面
+  if (!initialized) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-white dark:bg-gray-900">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <h2 className="text-xl font-medium text-gray-900 dark:text-white mb-2">
+            Loading Prompt Manager
+          </h2>
+          <p className="text-gray-600 dark:text-gray-400">
+            Initializing your prompt library...
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   // 过滤prompts
   const filteredPrompts = prompts.filter(prompt => {
@@ -20,13 +81,22 @@ function App() {
       prompt.tags.some(tag => tag.toLowerCase().includes(query))
     );
 
+    // 按选中的文件夹过滤
+    const matchesFolder = !selectedFolderId || prompt.folderId === selectedFolderId;
+
     // 按选中的标签过滤
-// Filter by selected tags
-    const matchesTags = selectedTags.length === 0 || 
-      (selectedTags.includes('__uncategorized__') 
-        ? prompt.tags.length === 0
-        : selectedTags.some(tag => prompt.tags.includes(tag)));
-    return matchesSearch && matchesTags;
+    let matchesTags = false;
+    if (selectedTags.length === 0) {
+      matchesTags = true; // 没有选择标签时显示所有
+    } else if (selectedTags.includes('__uncategorized__')) {
+      // 显示没有标签且没有文件夹的prompts
+      matchesTags = prompt.tags.length === 0 && !prompt.folderId;
+    } else {
+      // 至少包含一个选中的标签
+      matchesTags = selectedTags.some(tag => prompt.tags.includes(tag));
+    }
+        
+    return matchesSearch && matchesFolder && matchesTags;
   });
 
   const handlePromptSelect = (prompt: any) => {
@@ -39,16 +109,29 @@ function App() {
     setCurrentView('editor');
   };
 
-  const handlePromptCopy = (prompt: any) => {
-    console.log('Copied prompt:', prompt.title);
+  const handlePromptCopy = async (prompt: any) => {
+    try {
+      const content = await copyPromptContent(prompt.id);
+      await navigator.clipboard.writeText(content);
+      addToast(`Copied "${prompt.title}" to clipboard`, 'success');
+    } catch (error) {
+      console.error('Failed to copy prompt:', error);
+      addToast('Failed to copy prompt to clipboard', 'error');
+    }
   };
 
-  const handlePromptDelete = (prompt: any) => {
+  const handlePromptDelete = async (prompt: any) => {
     if (confirm('Are you sure you want to delete this prompt?')) {
-      deletePrompt(prompt.id);
-      if (selectedPrompt?.id === prompt.id) {
-        setSelectedPrompt(null);
-        setCurrentView('main');
+      try {
+        await deletePrompt(prompt.id);
+        if (selectedPrompt?.id === prompt.id) {
+          setSelectedPrompt(null);
+          setCurrentView('main');
+        }
+        addToast(`Deleted prompt "${prompt.title}"`, 'success');
+      } catch (error) {
+        console.error('Failed to delete prompt:', error);
+        addToast('Failed to delete prompt', 'error');
       }
     }
   };
@@ -59,93 +142,87 @@ function App() {
   };
 
   const handleNewFolder = () => {
-    // TODO: 实现新建文件夹功能
-    const folderName = prompt('Please enter folder name:');
-    if (folderName && folderName.trim()) {
-      console.log('Creating new folder:', folderName.trim());
-      // 这里可以添加创建文件夹的逻辑
-    }
+    setModalState({ type: 'folder', isOpen: true });
   };
 
   const handleNewTag = () => {
-    // TODO: 实现新建标签功能
-    const tagName = prompt('Please enter tag name:');
-    if (tagName && tagName.trim()) {
-      console.log('Creating new tag:', tagName.trim());
-      // 这里可以添加创建标签的逻辑
+    setModalState({ type: 'tag', isOpen: true });
+  };
+
+  const handleModalConfirm = async (value: string) => {
+    try {
+      if (modalState.type === 'folder') {
+        await createFolder({ name: value });
+        addToast(`Created folder "${value}"`, 'success');
+      } else if (modalState.type === 'tag') {
+        await createTag({ name: value });
+        addToast(`Created tag "${value}"`, 'success');
+      }
+      setModalState({ type: null, isOpen: false });
+    } catch (error) {
+      console.error(`Failed to create ${modalState.type}:`, error);
+      addToast(`Failed to create ${modalState.type}`, 'error');
     }
   };
 
-  const handleSavePrompt = (promptData: any) => {
-    if (editingPrompt) {
-      updatePrompt(editingPrompt.id, promptData);
-    } else {
-      const newPrompt = {
-        id: Date.now().toString(),
-        ...promptData,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        usageCount: 0,
-      };
-      addPrompt(newPrompt);
+  const handleModalCancel = () => {
+    setModalState({ type: null, isOpen: false });
+  };
+
+  const handlePromptSave = async (promptData: any) => {
+    try {
+      if (editingPrompt) {
+        await updatePrompt(editingPrompt.id, promptData);
+        addToast(`Updated prompt "${promptData.title}"`, 'success');
+      } else {
+        // 如果有选中的文件夹，添加到新prompt中
+        if (selectedFolderId) {
+          promptData.folderId = selectedFolderId;
+        }
+        await createPrompt(promptData);
+        addToast(`Created prompt "${promptData.title}"`, 'success');
+      }
+      setEditingPrompt(null);
+      setCurrentView('main');
+    } catch (error) {
+      console.error('Failed to save prompt:', error);
+      addToast(`Failed to ${editingPrompt ? 'update' : 'create'} prompt`, 'error');
     }
-    setCurrentView('main');
-    setEditingPrompt(null);
   };
 
-  const handleCancelEdit = () => {
-    setCurrentView('main');
+  const handlePromptEditCancel = () => {
     setEditingPrompt(null);
+    setCurrentView('main');
   };
 
-  const handleCloseDetail = () => {
-    setCurrentView('main');
+  const handleBackToMain = () => {
     setSelectedPrompt(null);
+    setCurrentView('main');
   };
 
-  // 导航功能：上一个/下一个 prompt
-  const handlePreviousPrompt = () => {
-    if (!selectedPrompt) return;
-    
-    const currentIndex = filteredPrompts.findIndex(p => p.id === selectedPrompt.id);
-    if (currentIndex > 0) {
-      const prevPrompt = filteredPrompts[currentIndex - 1];
-      if (prevPrompt) {
-        setSelectedPrompt(prevPrompt);
-      }
-    }
-  };
-
-  const handleNextPrompt = () => {
-    if (!selectedPrompt) return;
-    
-    const currentIndex = filteredPrompts.findIndex(p => p.id === selectedPrompt.id);
-    if (currentIndex < filteredPrompts.length - 1) {
-      const nextPrompt = filteredPrompts[currentIndex + 1];
-      if (nextPrompt) {
-        setSelectedPrompt(nextPrompt);
-      }
-    }
-  };
+  // 移除了 handlePreviousPrompt 和 handleNextPrompt 函数
+  // 因为我们现在只需要一个返回到主页的功能
 
   const renderMainContent = () => {
+    // 详情视图
     if (currentView === 'detail' && selectedPrompt) {
       return (
         <PromptDetailView
           prompt={selectedPrompt}
-          onEdit={handlePromptEdit}
-          onClose={handleCloseDetail}
-          onCopy={handlePromptCopy}
+          onEdit={() => handlePromptEdit(selectedPrompt)}
+          onCopy={() => handlePromptCopy(selectedPrompt)}
+          onClose={handleBackToMain}
         />
       );
     }
 
+    // 编辑视图
     if (currentView === 'editor') {
       return (
         <PromptEditor
           prompt={editingPrompt}
-          onSave={handleSavePrompt}
-          onCancel={handleCancelEdit}
+          onSave={handlePromptSave}
+          onCancel={handlePromptEditCancel}
           isEditing={!!editingPrompt}
         />
       );
@@ -161,7 +238,7 @@ function App() {
             </svg>
             <h3 className="text-lg font-medium mb-2">No prompts found</h3>
             <p className="text-center mb-4">
-              {searchQuery || selectedTags.length > 0 
+              {searchQuery || selectedTags.length > 0 || selectedFolderId
                 ? 'Try adjusting your search or filters'
                 : 'Get started by creating your first prompt'
               }
@@ -198,16 +275,44 @@ function App() {
   };
 
   return (
-    <MainLayout
-      currentView={currentView}
-      onNewPrompt={handleNewPrompt}
-      onNewFolder={handleNewFolder}
-      onNewTag={handleNewTag}
-      onBack={handlePreviousPrompt}
-      onNext={handleNextPrompt}
-    >
-      {renderMainContent()}
-    </MainLayout>
+    <>
+      <MainLayout
+        currentView={currentView}
+        onNewPrompt={handleNewPrompt}
+        onNewFolder={handleNewFolder}
+        onNewTag={handleNewTag}
+        onBackToMain={handleBackToMain}
+      >
+        {renderMainContent()}
+      </MainLayout>
+
+      {/* 创建文件夹/标签的模态对话框 */}
+      <InputModal
+        isOpen={modalState.isOpen}
+        title={modalState.type === 'folder' ? 'Create New Folder' : 'Create New Tag'}
+        placeholder={modalState.type === 'folder' ? 'Enter folder name' : 'Enter tag name'}
+        description={modalState.type === 'folder' 
+          ? 'Create a new folder to organize your prompts'
+          : 'Create a new tag to categorize your prompts'
+        }
+        confirmText="Create"
+        onConfirm={handleModalConfirm}
+        onCancel={handleModalCancel}
+      />
+
+      {/* Toast通知 */}
+      <div className="fixed top-4 right-4 z-50 space-y-2">
+        {toasts.map((toast) => (
+          <Toast
+            key={toast.id}
+            message={toast.message}
+            type={toast.type}
+            duration={toast.duration || 3000}
+            onClose={() => removeToast(toast.id)}
+          />
+        ))}
+      </div>
+    </>
   );
 }
 

@@ -1,10 +1,5 @@
 import { Prompt, Folder, Tag } from '../store';
-import { StorageService, storageService } from './storage';
-
-// 生成唯一ID的工具函数
-function generateId(): string {
-  return `prompt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-}
+import { storageService } from './storage';
 
 // 提取文本中的变量
 function extractVariables(content: string): string[] {
@@ -141,14 +136,24 @@ export class PromptService {
     if (index === -1) return null;
 
     // 如果内容有更新，重新提取变量
-    const updatedContent = updates.content || this.prompts[index].content;
+    const updatedContent = updates.content || this.prompts[index]!.content;
     const variables = extractVariables(updatedContent);
 
+    const currentPrompt = this.prompts[index]!;
     const updatedPrompt: Prompt = {
-      ...this.prompts[index],
-      ...updates,
+      id: currentPrompt.id,
+      title: updates.title ?? currentPrompt.title,
+      content: updates.content ?? currentPrompt.content,
+      tags: updates.tags ?? currentPrompt.tags,
       variables,
+      createdAt: currentPrompt.createdAt,
       updatedAt: new Date(),
+      ...(updates.description !== undefined ? { description: updates.description } : 
+         currentPrompt.description !== undefined ? { description: currentPrompt.description } : {}),
+      ...(updates.folderId !== undefined ? { folderId: updates.folderId } : 
+         currentPrompt.folderId !== undefined ? { folderId: currentPrompt.folderId } : {}),
+      ...(updates.usageCount !== undefined ? { usageCount: updates.usageCount } : 
+         currentPrompt.usageCount !== undefined ? { usageCount: currentPrompt.usageCount } : {}),
     };
 
     this.prompts[index] = updatedPrompt;
@@ -166,10 +171,14 @@ export class PromptService {
     const index = this.folders.findIndex(f => f.id === id);
     if (index === -1) return null;
 
+    const currentFolder = this.folders[index]!;
     const updatedFolder: Folder = {
-      ...this.folders[index],
-      ...updates,
+      id: currentFolder.id,
+      name: updates.name ?? currentFolder.name,
+      createdAt: currentFolder.createdAt,
       updatedAt: new Date(),
+      ...(updates.description !== undefined ? { description: updates.description } : 
+         currentFolder.description !== undefined ? { description: currentFolder.description } : {}),
     };
 
     this.folders[index] = updatedFolder;
@@ -187,10 +196,16 @@ export class PromptService {
     const index = this.tags.findIndex(t => t.id === id);
     if (index === -1) return null;
 
+    const currentTag = this.tags[index]!;
     const updatedTag: Tag = {
-      ...this.tags[index],
-      ...updates,
+      id: currentTag.id,
+      name: updates.name ?? currentTag.name,
+      createdAt: currentTag.createdAt,
       updatedAt: new Date(),
+      ...(updates.description !== undefined ? { description: updates.description } : 
+         currentTag.description !== undefined ? { description: currentTag.description } : {}),
+      ...(updates.color !== undefined ? { color: updates.color } : 
+         currentTag.color !== undefined ? { color: currentTag.color } : {}),
     };
 
     this.tags[index] = updatedTag;
@@ -249,7 +264,7 @@ export class PromptService {
     const index = this.tags.findIndex(t => t.id === id);
     if (index === -1) return false;
 
-    const tagToDelete = this.tags[index];
+    const tagToDelete = this.tags[index]!;
     
     // 移除标签
     this.tags.splice(index, 1);

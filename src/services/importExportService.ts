@@ -142,7 +142,18 @@ export class ImportExportService {
       }
 
       // 导入prompts
-      importedCount = await promptService.importPrompts(importedPrompts, mergeStrategy);
+      for (const prompt of importedPrompts) {
+        try {
+          if (mergeStrategy === 'replace' || !existingIds.has(prompt.id)) {
+            const { id, createdAt, updatedAt, variables, usageCount, ...promptData } = prompt;
+            await promptService.createPrompt(promptData);
+            importedCount++;
+          }
+        } catch (error) {
+          console.error(`Failed to import prompt ${prompt.title}:`, error);
+          errors.push(`Failed to import prompt: ${prompt.title}`);
+        }
+      }
 
       return {
         success: true,

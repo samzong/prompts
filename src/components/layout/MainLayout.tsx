@@ -11,6 +11,10 @@ interface MainLayoutProps {
   onNewFolder?: () => void;
   onNewTag?: () => void;
   onBackToMain?: () => void;
+  onDeleteFolder?: (folderId: string, folderName: string) => void;
+  onDeleteTag?: (tagId: string, tagName: string) => void;
+  onRenameFolder?: (folderId: string, currentName: string) => void;
+  onRenameTag?: (tagId: string, currentName: string) => void;
 }
 
 export const MainLayout: React.FC<MainLayoutProps> = ({ 
@@ -19,7 +23,11 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
   onNewPrompt, 
   onNewFolder,
   onNewTag,
-  onBackToMain
+  onBackToMain,
+  onDeleteFolder,
+  onDeleteTag,
+  onRenameFolder,
+  onRenameTag
 }) => {
   const { isSidebarCollapsed } = useAppStore();
 
@@ -33,6 +41,10 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
           onNewFolder={onNewFolder}
           onNewTag={onNewTag}
           onBackToMain={onBackToMain}
+          onDeleteFolder={onDeleteFolder}
+          onDeleteTag={onDeleteTag}
+          onRenameFolder={onRenameFolder}
+          onRenameTag={onRenameTag}
         />
       </div>
 

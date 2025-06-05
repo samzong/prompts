@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { MainLayout } from './components/layout/MainLayout';
 import { PromptCard } from './components/prompt/PromptCard';
 import { PromptDetailView } from './components/prompt/PromptDetailView';
 import { PromptEditor } from './components/prompt/PromptEditor';
 import { InputModal } from './components/ui/InputModal';
+import { ConfirmModal } from './components/ui/ConfirmModal';
 import { Toast } from './components/ui/Toast';
 import { useAppStore } from './store';
 
@@ -13,6 +14,21 @@ type CurrentView = 'main' | 'detail' | 'editor';
 interface ModalState {
   type: 'folder' | 'tag' | null;
   isOpen: boolean;
+}
+
+interface ConfirmDeleteState {
+  isOpen: boolean;
+  type: 'folder' | 'tag' | null;
+  id: string;
+  name: string;
+  promptCount?: number;
+}
+
+interface RenameState {
+  isOpen: boolean;
+  type: 'folder' | 'tag' | null;
+  id: string;
+  currentName: string;
 }
 
 function App() {
@@ -26,7 +42,11 @@ function App() {
     setSelectedPrompt, 
     createPrompt, 
     updatePrompt, 
-    deletePrompt, 
+    deletePrompt,
+    deleteFolder,
+    deleteTag,
+    updateFolder,
+    updateTag,
     copyPromptContent,
     createFolder,
     createTag,
@@ -40,6 +60,19 @@ function App() {
   const [currentView, setCurrentView] = useState<CurrentView>('main');
   const [editingPrompt, setEditingPrompt] = useState<any>(null);
   const [modalState, setModalState] = useState<ModalState>({ type: null, isOpen: false });
+  const [confirmDeleteState, setConfirmDeleteState] = useState<ConfirmDeleteState>({
+    isOpen: false,
+    type: null,
+    id: '',
+    name: '',
+    promptCount: 0
+  });
+  const [renameState, setRenameState] = useState<RenameState>({
+    isOpen: false,
+    type: null,
+    id: '',
+    currentName: ''
+  });
 
   // 应用初始化
   useEffect(() => {
@@ -169,6 +202,96 @@ function App() {
     setModalState({ type: null, isOpen: false });
   };
 
+  // 删除文件夹处理
+  const handleDeleteFolder = (folderId: string, folderName: string) => {
+    const promptCount = prompts.filter(p => p.folderId === folderId).length;
+    setConfirmDeleteState({
+      isOpen: true,
+      type: 'folder',
+      id: folderId,
+      name: folderName,
+      promptCount
+    });
+  };
+
+  // 删除标签处理
+  const handleDeleteTag = (tagId: string, tagName: string) => {
+    const promptCount = prompts.filter(p => p.tags.includes(tagName)).length;
+    setConfirmDeleteState({
+      isOpen: true,
+      type: 'tag',
+      id: tagId,
+      name: tagName,
+      promptCount
+    });
+  };
+
+  // 确认删除
+  const handleConfirmDelete = async () => {
+    try {
+      if (confirmDeleteState.type === 'folder') {
+        await deleteFolder(confirmDeleteState.id);
+        addToast(`Deleted folder "${confirmDeleteState.name}"`, 'success');
+        // 如果删除的是当前选中的文件夹，清除选择
+        if (selectedFolderId === confirmDeleteState.id) {
+          // 这会在store中自动处理
+        }
+      } else if (confirmDeleteState.type === 'tag') {
+        await deleteTag(confirmDeleteState.id);
+        addToast(`Deleted tag "${confirmDeleteState.name}"`, 'success');
+      }
+      setConfirmDeleteState({ isOpen: false, type: null, id: '', name: '', promptCount: 0 });
+    } catch (error) {
+      console.error('Failed to delete:', error);
+      addToast(`Failed to delete ${confirmDeleteState.type}`, 'error');
+    }
+  };
+
+  const handleCancelDelete = () => {
+    setConfirmDeleteState({ isOpen: false, type: null, id: '', name: '', promptCount: 0 });
+  };
+
+  // 重命名文件夹处理
+  const handleRenameFolder = (folderId: string, currentName: string) => {
+    setRenameState({
+      isOpen: true,
+      type: 'folder',
+      id: folderId,
+      currentName
+    });
+  };
+
+  // 重命名标签处理
+  const handleRenameTag = (tagId: string, currentName: string) => {
+    setRenameState({
+      isOpen: true,
+      type: 'tag',
+      id: tagId,
+      currentName
+    });
+  };
+
+  // 确认重命名
+  const handleConfirmRename = async (newName: string) => {
+    try {
+      if (renameState.type === 'folder') {
+        await updateFolder(renameState.id, { name: newName });
+        addToast(`Renamed folder to "${newName}"`, 'success');
+      } else if (renameState.type === 'tag') {
+        await updateTag(renameState.id, { name: newName });
+        addToast(`Renamed tag to "${newName}"`, 'success');
+      }
+      setRenameState({ isOpen: false, type: null, id: '', currentName: '' });
+    } catch (error) {
+      console.error('Failed to rename:', error);
+      addToast(`Failed to rename ${renameState.type}`, 'error');
+    }
+  };
+
+  const handleCancelRename = () => {
+    setRenameState({ isOpen: false, type: null, id: '', currentName: '' });
+  };
+
   const handlePromptSave = async (promptData: any) => {
     try {
       if (editingPrompt) {
@@ -200,78 +323,95 @@ function App() {
     setCurrentView('main');
   };
 
-  // 移除了 handlePreviousPrompt 和 handleNextPrompt 函数
-  // 因为我们现在只需要一个返回到主页的功能
-
+  // 渲染主内容
   const renderMainContent = () => {
-    // 详情视图
-    if (currentView === 'detail' && selectedPrompt) {
-      return (
-        <PromptDetailView
-          prompt={selectedPrompt}
-          onEdit={() => handlePromptEdit(selectedPrompt)}
-          onCopy={() => handlePromptCopy(selectedPrompt)}
-          onClose={handleBackToMain}
-        />
-      );
-    }
-
-    // 编辑视图
-    if (currentView === 'editor') {
-      return (
-        <PromptEditor
-          prompt={editingPrompt}
-          onSave={handlePromptSave}
-          onCancel={handlePromptEditCancel}
-          isEditing={!!editingPrompt}
-        />
-      );
-    }
-
-    // 主视图 - 简洁的卡片网格
-    return (
-      <div className="h-full p-6">
-        {filteredPrompts.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-64 text-gray-500 dark:text-gray-400">
-            <svg className="w-16 h-16 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-            <h3 className="text-lg font-medium mb-2">No prompts found</h3>
-            <p className="text-center mb-4">
-              {searchQuery || selectedTags.length > 0 || selectedFolderId
-                ? 'Try adjusting your search or filters'
-                : 'Get started by creating your first prompt'
-              }
-            </p>
-            <button
-              onClick={handleNewPrompt}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
-            >
-              Create New Prompt
-            </button>
+    switch (currentView) {
+      case 'detail':
+        return selectedPrompt ? (
+          <PromptDetailView
+            prompt={selectedPrompt}
+            onEdit={handlePromptEdit}
+            onClose={handleBackToMain}
+          />
+        ) : null;
+      
+      case 'editor':
+        return (
+          <PromptEditor
+            prompt={editingPrompt}
+            onSave={handlePromptSave}
+            onCancel={handlePromptEditCancel}
+            isEditing={!!editingPrompt}
+          />
+        );
+      
+      case 'main':
+      default:
+        return (
+          <div className="p-6">
+            {filteredPrompts.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="text-gray-400 dark:text-gray-600 mb-4">
+                  <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                  No prompts found
+                </h3>
+                <p className="text-gray-500 dark:text-gray-400 mb-6">
+                  {searchQuery || selectedTags.length > 0 || selectedFolderId
+                    ? 'Try adjusting your search or filters'
+                    : 'Get started by creating your first prompt'
+                  }
+                </p>
+                {!searchQuery && selectedTags.length === 0 && !selectedFolderId && (
+                  <button
+                    onClick={handleNewPrompt}
+                    className="btn-primary"
+                  >
+                    Create First Prompt
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className={view === 'grid' 
+                ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'
+                : 'space-y-4'
+              }>
+                                 {filteredPrompts.map((prompt) => (
+                   <PromptCard
+                     key={prompt.id}
+                     prompt={prompt}
+                     viewMode={view}
+                     isSelected={selectedPrompt?.id === prompt.id}
+                     onSelect={handlePromptSelect}
+                     onEdit={handlePromptEdit}
+                     onDelete={handlePromptDelete}
+                     onCopy={handlePromptCopy}
+                   />
+                 ))}
+              </div>
+            )}
           </div>
-        ) : (
-          <div className={
-            view === 'grid' 
-              ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6' 
-              : 'space-y-4'
-          }>
-            {filteredPrompts.map((prompt) => (
-              <PromptCard
-                key={prompt.id}
-                prompt={prompt}
-                viewMode={view}
-                isSelected={selectedPrompt?.id === prompt.id}
-                onSelect={handlePromptSelect}
-                onEdit={handlePromptEdit}
-                onDelete={handlePromptDelete}
-                onCopy={handlePromptCopy}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-    );
+        );
+    }
+  };
+
+  const getDeleteConfirmMessage = () => {
+    const { type, name, promptCount } = confirmDeleteState;
+    
+    if (type === 'folder') {
+      return promptCount && promptCount > 0
+        ? `Are you sure you want to delete the folder "${name}"? This will remove the folder assignment from ${promptCount} prompt${promptCount > 1 ? 's' : ''}.`
+        : `Are you sure you want to delete the folder "${name}"?`;
+    } else if (type === 'tag') {
+      return promptCount && promptCount > 0
+        ? `Are you sure you want to delete the tag "${name}"? This will remove the tag from ${promptCount} prompt${promptCount > 1 ? 's' : ''}.`
+        : `Are you sure you want to delete the tag "${name}"?`;
+    }
+    
+    return '';
   };
 
   return (
@@ -282,6 +422,10 @@ function App() {
         onNewFolder={handleNewFolder}
         onNewTag={handleNewTag}
         onBackToMain={handleBackToMain}
+        onDeleteFolder={handleDeleteFolder}
+        onDeleteTag={handleDeleteTag}
+        onRenameFolder={handleRenameFolder}
+        onRenameTag={handleRenameTag}
       >
         {renderMainContent()}
       </MainLayout>
@@ -298,6 +442,30 @@ function App() {
         confirmText="Create"
         onConfirm={handleModalConfirm}
         onCancel={handleModalCancel}
+      />
+
+      {/* 确认删除对话框 */}
+      <ConfirmModal
+        isOpen={confirmDeleteState.isOpen}
+        title={`Delete ${confirmDeleteState.type === 'folder' ? 'Folder' : 'Tag'}`}
+        message={getDeleteConfirmMessage()}
+        confirmText="Delete"
+        cancelText="Cancel"
+        danger={true}
+        onConfirm={handleConfirmDelete}
+        onCancel={handleCancelDelete}
+      />
+
+      {/* 重命名对话框 */}
+      <InputModal
+        isOpen={renameState.isOpen}
+        title={`Rename ${renameState.type === 'folder' ? 'Folder' : 'Tag'}`}
+        placeholder={`Enter new ${renameState.type} name`}
+        defaultValue={renameState.currentName}
+        description={`Change the name of this ${renameState.type}`}
+        confirmText="Rename"
+        onConfirm={handleConfirmRename}
+        onCancel={handleCancelRename}
       />
 
       {/* Toast通知 */}

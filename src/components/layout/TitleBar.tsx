@@ -8,7 +8,7 @@ interface TitleBarProps {
 }
 
 export const TitleBar: React.FC<TitleBarProps> = ({ 
-  title = 'Prompt Snippets Manager',
+  title = 'Prompts',
   showControls = true,
   className = ''
 }) => {

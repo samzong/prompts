@@ -234,7 +234,7 @@ pub fn run() {
                 .ok_or("Failed to get default window icon")?;
             
             let _tray = TrayIconBuilder::with_id("main-tray")
-                .tooltip("Prompt Snippets Manager")
+                .tooltip("Prompts")
                 .icon(icon.clone())
                 .on_tray_icon_event(move |_tray, event| {
                     use tauri::tray::TrayIconEvent;

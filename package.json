@@ -1,8 +1,8 @@
 {
-  "name": "prompt-snippets-manager",
+  "name": "prompts",
   "private": true,
   "version": "0.1.0",
-  "description": "System-level prompt management tool for macOS",
+  "description": "System-level prompt management tool for Users",
   "author": "Samzong",
   "license": "MIT",
   "type": "module",
@@ -47,9 +47,7 @@
     "vite": "^6.0.3"
   },
   "keywords": [
-    "prompt",
-    "snippets",
-    "manager",
+    "prompts",
     "macos",
     "tauri",
     "react",

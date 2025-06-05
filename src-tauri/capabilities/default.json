@@ -1,9 +1,10 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capability for the main window",
+  "description": "Capability for all application windows",
   "windows": [
-    "main"
+    "main",
+    "quick_picker"
   ],
   "permissions": [
     "core:default",
@@ -51,6 +52,9 @@
     "dialog:allow-open",
     "dialog:allow-save",
     "clipboard-manager:default",
-    "clipboard-manager:allow-write-text"
+    "clipboard-manager:allow-write-text",
+    "global-shortcut:allow-register",
+    "global-shortcut:allow-unregister",
+    "global-shortcut:allow-is-registered"
   ]
-}
+} 

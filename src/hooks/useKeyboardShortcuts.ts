@@ -26,8 +26,6 @@ export const useKeyboardShortcuts = (shortcuts: KeyboardShortcut[], enabled = tr
     }
 
     for (const shortcut of shortcuts) {
-      const isCtrlMatch = shortcut.ctrl ? event.ctrlKey : !event.ctrlKey;
-      const isCmdMatch = shortcut.cmd ? event.metaKey : !event.metaKey;
       const isShiftMatch = shortcut.shift ? event.shiftKey : !event.shiftKey;
       const isAltMatch = shortcut.alt ? event.altKey : !event.altKey;
       const isKeyMatch = event.key === shortcut.key;

@@ -49,14 +49,6 @@
     ]
   },
   "plugins": {
-    "globalShortcut": {
-      "shortcuts": [
-        {
-          "shortcut": "CmdOrCtrl+Shift+P",
-          "handler": "toggle_quick_picker"
-        }
-      ]
-    },
     "fs": {
       "requireLiteralLeadingDot": false
     }

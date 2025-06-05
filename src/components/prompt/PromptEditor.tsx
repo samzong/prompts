@@ -127,7 +127,7 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({
     }
   };
 
-  const isValid = title.trim() && content.trim();
+  const isValid = Boolean(title.trim() && content.trim());
 
   // 键盘快捷键
   const shortcuts = createCommonShortcuts({

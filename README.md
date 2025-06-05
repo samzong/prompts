@@ -62,10 +62,18 @@ A free and open source prompt snippets manager for macOS Users. System-level pro
 
 ### 🔄 Next Phases
 
-**Phase 4: System Integration** (TODO)
-- [ ] Global hotkey implementation
-- [ ] Menu bar integration
-- [ ] System tray functionality
+### ✅ Phase 4: System Integration (IN PROGRESS)
+
+**4.1 Global Shortcuts**
+- ✅ Global hotkey implementation (`Cmd+Shift+P` for QuickPicker)
+
+**4.2 System Tray/Menu Bar**
+- ✅ Menu bar integration with tray icon
+- ✅ Left click to toggle QuickPicker
+- ✅ Right click to toggle main window
+- ✅ Dual access mode: main window + system tray
+
+**4.3 Clipboard Integration** (TODO)
 - [ ] Clipboard integration
 
 **Phase 5: Advanced Features** (TODO)
@@ -96,8 +104,9 @@ src/
 ## 🎯 Core Features
 
 ### Menu Bar Integration
-- **Right Click** → Opens main window (Full Manager)
-- **Left Click** → Opens quick picker (Search Overlay)
+- **Left Click** → Opens/toggles Quick Picker (Search Overlay)
+- **Right Click** → Shows/toggles main window (Full Manager)
+- Application supports both main window and system tray access
 
 ### Quick Picker (Search Overlay)
 **Triggered by:**

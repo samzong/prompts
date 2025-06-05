@@ -1,0 +1,59 @@
+import React from 'react';
+import { Navigation } from './Navigation';
+import { Header } from './Header';
+import { Footer } from './Footer';
+import { useAppStore } from '../../store';
+
+interface MainLayoutProps {
+  children: React.ReactNode;
+  currentView: 'main' | 'detail' | 'editor';
+  onNewPrompt?: () => void;
+  onNewFolder?: () => void;
+  onNewTag?: () => void;
+  onBack?: () => void;
+  onNext?: () => void;
+}
+
+export const MainLayout: React.FC<MainLayoutProps> = ({ 
+  children, 
+  currentView, 
+  onNewPrompt, 
+  onNewFolder,
+  onNewTag,
+  onBack, 
+  onNext 
+}) => {
+  const { isSidebarCollapsed } = useAppStore();
+
+  return (
+    <div className="flex h-screen bg-gray-50 dark:bg-gray-900">
+      {/* 侧边栏 */}
+      <div className={`${
+        isSidebarCollapsed ? 'w-0' : 'w-64'
+      } bg-white dark:bg-gray-800 shadow-sm border-r border-gray-200 dark:border-gray-700 flex flex-col transition-all duration-300 overflow-hidden`}>
+        <Navigation />
+      </div>
+
+      {/* 右侧内容区域 */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <Header 
+          currentView={currentView}
+          onNewPrompt={onNewPrompt}
+          onNewFolder={onNewFolder}
+          onNewTag={onNewTag}
+          onBack={onBack}
+          onNext={onNext}
+        />
+        
+        {/* 内容区域 */}
+        <main className="flex-1 overflow-auto custom-scrollbar">
+          <div className="animate-fade-in">
+            {children}
+          </div>
+        </main>
+        
+        <Footer />
+      </div>
+    </div>
+  );
+}; 

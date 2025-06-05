@@ -1,125 +1,213 @@
+import { useState } from 'react';
 import { useAppStore } from './store';
+import { MainLayout, PromptCard, PromptDetailView, PromptEditor } from './components';
+
+// type ViewMode = 'grid' | 'list';
+type CurrentView = 'main' | 'detail' | 'editor';
 
 function App() {
-  const { prompts, searchQuery, setSearchQuery } = useAppStore();
+  const { prompts, searchQuery, selectedPrompt, setSelectedPrompt, addPrompt, updatePrompt, deletePrompt, view, selectedTags } = useAppStore();
+  const [currentView, setCurrentView] = useState<CurrentView>('main');
+  const [editingPrompt, setEditingPrompt] = useState<any>(null);
+
+  // 过滤prompts
+  const filteredPrompts = prompts.filter(prompt => {
+    // 按搜索查询过滤
+    const query = searchQuery.toLowerCase();
+    const matchesSearch = !query || (
+      prompt.title.toLowerCase().includes(query) ||
+      prompt.content.toLowerCase().includes(query) ||
+      prompt.tags.some(tag => tag.toLowerCase().includes(query))
+    );
+
+    // 按选中的标签过滤
+// Filter by selected tags
+    const matchesTags = selectedTags.length === 0 || 
+      (selectedTags.includes('__uncategorized__') 
+        ? prompt.tags.length === 0
+        : selectedTags.some(tag => prompt.tags.includes(tag)));
+    return matchesSearch && matchesTags;
+  });
+
+  const handlePromptSelect = (prompt: any) => {
+    setSelectedPrompt(prompt);
+    setCurrentView('detail');
+  };
+
+  const handlePromptEdit = (prompt: any) => {
+    setEditingPrompt(prompt);
+    setCurrentView('editor');
+  };
+
+  const handlePromptCopy = (prompt: any) => {
+    console.log('Copied prompt:', prompt.title);
+  };
+
+  const handlePromptDelete = (prompt: any) => {
+    if (confirm('Are you sure you want to delete this prompt?')) {
+      deletePrompt(prompt.id);
+      if (selectedPrompt?.id === prompt.id) {
+        setSelectedPrompt(null);
+        setCurrentView('main');
+      }
+    }
+  };
+
+  const handleNewPrompt = () => {
+    setEditingPrompt(null);
+    setCurrentView('editor');
+  };
+
+  const handleNewFolder = () => {
+    // TODO: 实现新建文件夹功能
+    const folderName = prompt('Please enter folder name:');
+    if (folderName && folderName.trim()) {
+      console.log('Creating new folder:', folderName.trim());
+      // 这里可以添加创建文件夹的逻辑
+    }
+  };
+
+  const handleNewTag = () => {
+    // TODO: 实现新建标签功能
+    const tagName = prompt('Please enter tag name:');
+    if (tagName && tagName.trim()) {
+      console.log('Creating new tag:', tagName.trim());
+      // 这里可以添加创建标签的逻辑
+    }
+  };
+
+  const handleSavePrompt = (promptData: any) => {
+    if (editingPrompt) {
+      updatePrompt(editingPrompt.id, promptData);
+    } else {
+      const newPrompt = {
+        id: Date.now().toString(),
+        ...promptData,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        usageCount: 0,
+      };
+      addPrompt(newPrompt);
+    }
+    setCurrentView('main');
+    setEditingPrompt(null);
+  };
+
+  const handleCancelEdit = () => {
+    setCurrentView('main');
+    setEditingPrompt(null);
+  };
+
+  const handleCloseDetail = () => {
+    setCurrentView('main');
+    setSelectedPrompt(null);
+  };
+
+  // 导航功能：上一个/下一个 prompt
+  const handlePreviousPrompt = () => {
+    if (!selectedPrompt) return;
+    
+    const currentIndex = filteredPrompts.findIndex(p => p.id === selectedPrompt.id);
+    if (currentIndex > 0) {
+      const prevPrompt = filteredPrompts[currentIndex - 1];
+      if (prevPrompt) {
+        setSelectedPrompt(prevPrompt);
+      }
+    }
+  };
+
+  const handleNextPrompt = () => {
+    if (!selectedPrompt) return;
+    
+    const currentIndex = filteredPrompts.findIndex(p => p.id === selectedPrompt.id);
+    if (currentIndex < filteredPrompts.length - 1) {
+      const nextPrompt = filteredPrompts[currentIndex + 1];
+      if (nextPrompt) {
+        setSelectedPrompt(nextPrompt);
+      }
+    }
+  };
+
+  const renderMainContent = () => {
+    if (currentView === 'detail' && selectedPrompt) {
+      return (
+        <PromptDetailView
+          prompt={selectedPrompt}
+          onEdit={handlePromptEdit}
+          onClose={handleCloseDetail}
+          onCopy={handlePromptCopy}
+        />
+      );
+    }
+
+    if (currentView === 'editor') {
+      return (
+        <PromptEditor
+          prompt={editingPrompt}
+          onSave={handleSavePrompt}
+          onCancel={handleCancelEdit}
+          isEditing={!!editingPrompt}
+        />
+      );
+    }
+
+    // 主视图 - 简洁的卡片网格
+    return (
+      <div className="h-full p-6">
+        {filteredPrompts.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-64 text-gray-500 dark:text-gray-400">
+            <svg className="w-16 h-16 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <h3 className="text-lg font-medium mb-2">No prompts found</h3>
+            <p className="text-center mb-4">
+              {searchQuery || selectedTags.length > 0 
+                ? 'Try adjusting your search or filters'
+                : 'Get started by creating your first prompt'
+              }
+            </p>
+            <button
+              onClick={handleNewPrompt}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
+            >
+              Create New Prompt
+            </button>
+          </div>
+        ) : (
+          <div className={
+            view === 'grid' 
+              ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6' 
+              : 'space-y-4'
+          }>
+            {filteredPrompts.map((prompt) => (
+              <PromptCard
+                key={prompt.id}
+                prompt={prompt}
+                viewMode={view}
+                isSelected={selectedPrompt?.id === prompt.id}
+                onSelect={handlePromptSelect}
+                onEdit={handlePromptEdit}
+                onDelete={handlePromptDelete}
+                onCopy={handlePromptCopy}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      {/* 应用标题栏 */}
-      <div className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
-        <div className="px-6 py-4">
-          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
-            Prompt Snippets Manager
-          </h1>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-            System-level prompt management for macOS
-          </p>
-        </div>
-      </div>
-
-      {/* 主内容区域 */}
-      <div className="container mx-auto px-6 py-8">
-        {/* 搜索栏 */}
-        <div className="mb-8">
-          <div className="relative">
-            <input
-              type="text"
-              placeholder="Search prompts..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full px-4 py-3 pl-12 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 dark:text-white"
-            />
-            <svg
-              className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-              />
-            </svg>
-          </div>
-        </div>
-
-        {/* Prompt列表/网格 */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {prompts.length === 0 ? (
-            <div className="col-span-full text-center py-12">
-              <div className="text-gray-400 dark:text-gray-500 mb-4">
-                <svg
-                  className="mx-auto w-16 h-16"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={1}
-                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                  />
-                </svg>
-              </div>
-              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                No prompts yet
-              </h3>
-              <p className="text-gray-600 dark:text-gray-400 mb-6">
-                Create your first prompt to get started
-              </p>
-              <button className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors">
-                <svg
-                  className="w-5 h-5 mr-2"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-                  />
-                </svg>
-                New Prompt
-              </button>
-            </div>
-          ) : (
-            prompts.map((prompt) => (
-              <div
-                key={prompt.id}
-                className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 hover:shadow-md transition-shadow"
-              >
-                <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
-                  {prompt.title}
-                </h3>
-                {prompt.description && (
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-                    {prompt.description}
-                  </p>
-                )}
-                <div className="flex flex-wrap gap-2 mb-3">
-                  {prompt.tags.map((tag) => (
-                    <span
-                      key={tag}
-                      className="px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 text-xs font-medium rounded"
-                    >
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-                <div className="text-xs text-gray-500 dark:text-gray-400">
-                  Updated {prompt.updatedAt.toLocaleDateString()}
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
-    </div>
+    <MainLayout
+      currentView={currentView}
+      onNewPrompt={handleNewPrompt}
+      onNewFolder={handleNewFolder}
+      onNewTag={handleNewTag}
+      onBack={handlePreviousPrompt}
+      onNext={handleNextPrompt}
+    >
+      {renderMainContent()}
+    </MainLayout>
   );
 }
 

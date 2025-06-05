@@ -22,6 +22,14 @@ ifeq ($(UNAME_S),Linux)
 endif
 ifeq ($(UNAME_S),Darwin)
     PLATFORM := macos
+    # 检测当前 macOS 架构
+    ifeq ($(UNAME_M),arm64)
+        CURRENT_DARWIN_TARGET := aarch64-apple-darwin
+        CURRENT_ARCH := ARM64
+    else
+        CURRENT_DARWIN_TARGET := x86_64-apple-darwin
+        CURRENT_ARCH := Intel
+    endif
 endif
 ifeq ($(UNAME_S),Windows_NT)
     PLATFORM := windows
@@ -74,7 +82,7 @@ build-app: build ## 构建 Tauri 应用
 build-all: ## 构建所有平台的安装包
 	@echo "$(BLUE)开始构建所有平台...$(RESET)"
 	$(MAKE) build-linux
-	$(MAKE) build-macos
+	$(MAKE) build-macos-all
 	$(MAKE) build-windows
 	@echo "$(GREEN)✅ 所有平台构建完成$(RESET)"
 
@@ -85,11 +93,29 @@ build-linux: ## 构建 Linux 平台安装包
 	@echo "$(GREEN)✅ Linux 构建完成$(RESET)"
 
 .PHONY: build-macos
-build-macos: ## 构建 macOS 平台安装包
-	@echo "$(BLUE)构建 macOS 平台...$(RESET)"
+build-macos: ## 构建当前 macOS 架构
+	@echo "$(BLUE)构建当前 macOS 平台 ($(CURRENT_ARCH))...$(RESET)"
+	npm run tauri build -- --target $(CURRENT_DARWIN_TARGET)
+	@echo "$(GREEN)✅ macOS $(CURRENT_ARCH) 构建完成$(RESET)"
+
+.PHONY: build-macos-arm64
+build-macos-arm64: ## 构建 macOS ARM64 (Apple Silicon)
+	@echo "$(BLUE)构建 macOS ARM64 (Apple Silicon)...$(RESET)"
 	npm run tauri build -- --target aarch64-apple-darwin
+	@echo "$(GREEN)✅ macOS ARM64 构建完成$(RESET)"
+
+.PHONY: build-macos-intel
+build-macos-intel: ## 构建 macOS x86_64 (Intel)
+	@echo "$(BLUE)构建 macOS x86_64 (Intel)...$(RESET)"
 	npm run tauri build -- --target x86_64-apple-darwin
-	@echo "$(GREEN)✅ macOS 构建完成$(RESET)"
+	@echo "$(GREEN)✅ macOS Intel 构建完成$(RESET)"
+
+.PHONY: build-macos-all
+build-macos-all: ## 构建所有 macOS 架构
+	@echo "$(BLUE)构建所有 macOS 架构...$(RESET)"
+	$(MAKE) build-macos-arm64
+	$(MAKE) build-macos-intel
+	@echo "$(GREEN)✅ 所有 macOS 架构构建完成$(RESET)"
 
 .PHONY: build-windows
 build-windows: ## 构建 Windows 平台安装包
@@ -120,6 +146,7 @@ setup-targets: ## 安装跨平台编译目标
 	rustup target add x86_64-unknown-linux-gnu
 	rustup target add x86_64-pc-windows-msvc
 	rustup target add aarch64-apple-darwin
+	rustup target add x86_64-apple-darwin
 	@echo "$(GREEN)✅ 编译目标安装完成$(RESET)"
 
 .PHONY: update

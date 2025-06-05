@@ -275,9 +275,19 @@ pub fn run() {
         })
         .on_window_event(|window, event| {
             if let WindowEvent::Focused(focused) = event {
-                // 如果 quick_picker 失去焦点，隐藏它
+                // 如果 quick_picker 失去焦点，延迟隐藏它，给React组件时间处理ESC键
                 if !focused && window.label() == "quick_picker" {
-                    let _ = window.hide();
+                    let window_clone = window.clone();
+                    std::thread::spawn(move || {
+                        // 延迟100ms，让React组件的键盘事件处理器有机会执行
+                        std::thread::sleep(std::time::Duration::from_millis(100));
+                        // 再次检查窗口是否仍然失去焦点
+                        if let Ok(is_focused) = window_clone.is_focused() {
+                            if !is_focused {
+                                let _ = window_clone.hide();
+                            }
+                        }
+                    });
                 }
             }
         })

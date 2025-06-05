@@ -195,28 +195,30 @@ export const QuickPicker: React.FC = () => {
     }
   }, [handleClose]);
 
-  // 键盘事件处理
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        handleClose();
-      } else if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        setSelectedIndex(prev => Math.min(prev + 1, results.length - 1));
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        setSelectedIndex(prev => Math.max(prev - 1, 0));
-      } else if (e.key === 'Enter') {
-        e.preventDefault();
-        if (results.length > 0 && results[selectedIndex]) {
-          handleCopy(results[selectedIndex]);
-        }
+  // 键盘事件处理 - 使用useCallback确保函数引用稳定
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      handleClose();
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setSelectedIndex(prev => Math.min(prev + 1, results.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSelectedIndex(prev => Math.max(prev - 1, 0));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (results.length > 0 && results[selectedIndex]) {
+        handleCopy(results[selectedIndex]);
       }
-    };
+    }
+  }, [results.length, selectedIndex, handleClose, handleCopy]);
 
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [results, selectedIndex, handleClose, handleCopy]);
+  useEffect(() => {
+    document.addEventListener('keydown', handleKeyDown, { capture: true });
+    return () => document.removeEventListener('keydown', handleKeyDown, { capture: true });
+  }, [handleKeyDown]);
 
   // 自动聚焦输入框
   useEffect(() => {
@@ -224,6 +226,20 @@ export const QuickPicker: React.FC = () => {
       inputRef.current.focus();
     }
   }, []);
+
+  // 额外的ESC键处理保护 - 直接在window级别监听
+  useEffect(() => {
+    const handleWindowKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        handleClose();
+      }
+    };
+
+    window.addEventListener('keydown', handleWindowKeyDown, { capture: true, passive: false });
+    return () => window.removeEventListener('keydown', handleWindowKeyDown, { capture: true });
+  }, [handleClose]);
 
   // 滚动到选中项
   useEffect(() => {

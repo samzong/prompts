@@ -4,6 +4,12 @@
 
 A free and open source prompt management tool for Users. System-level prompt management tool that's not bound by any specific application.
 
+
+https://github.com/user-attachments/assets/50b02fe6-e81b-4cbb-bf89-c5fb9997ca1b
+
+
+
+
 ## 🏗️ Architecture
 
 ### Tech Stack

@@ -307,7 +307,7 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({
                 value={content}
                 onChange={(value) => setContent(value)}
                 extensions={[markdown()]}
-                {...(isDarkMode ? { theme: oneDark } : {})}
+                theme={isDarkMode ? oneDark : 'light'}
                 placeholder="Enter your prompt content here. Use {variable_name} syntax for variables."
                 className="text-sm"
                 style={{

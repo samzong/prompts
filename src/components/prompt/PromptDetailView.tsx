@@ -116,14 +116,15 @@ export const PromptDetailView: React.FC<PromptDetailViewProps> = ({
 
       {/* 内容区域 */}
       <div className="flex-1 overflow-auto p-6">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* 左侧：原始内容 */}
-          <div>
-            <div className="mb-4">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+        {/* 动态布局：有变量时左右分栏，无变量时单栏全宽 */}
+        <div className={prompt.variables.length > 0 ? 'grid grid-cols-1 lg:grid-cols-2 gap-8' : 'max-w-none'}>
+          {/* 原始内容 */}
+          <div className={prompt.variables.length > 0 ? '' : 'max-w-full'}>
+            <div className="mb-6">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
                 Original Content
               </h3>
-              <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 font-mono text-sm leading-relaxed">
+              <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-6 font-mono text-sm leading-relaxed">
                 <div 
                   dangerouslySetInnerHTML={{ 
                     __html: highlightVariables(prompt.content)
@@ -136,13 +137,13 @@ export const PromptDetailView: React.FC<PromptDetailViewProps> = ({
             {/* 变量设置 */}
             {prompt.variables.length > 0 && (
               <div className="mb-6">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
                   Variables
                 </h3>
-                <div className="space-y-3">
+                <div className="space-y-4">
                   {prompt.variables.map((variable) => (
                     <div key={variable}>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         {variable}
                       </label>
                       <input
@@ -159,93 +160,30 @@ export const PromptDetailView: React.FC<PromptDetailViewProps> = ({
             )}
           </div>
 
-          {/* 右侧：处理后内容 */}
+          {/* 处理后内容 - 仅在有变量时显示 */}
           {prompt.variables.length > 0 && (
             <div>
-              <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                   Processed Content
                 </h3>
                 <button
                   onClick={handleCopyProcessed}
-                  className="flex items-center px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md transition-colors"
+                  className="flex items-center px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md transition-colors"
                 >
-                  <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                   </svg>
                   Copy
                 </button>
               </div>
-              <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4 font-mono text-sm leading-relaxed">
+              <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-6 font-mono text-sm leading-relaxed">
                 <div className="whitespace-pre-wrap text-gray-800 dark:text-gray-200">
                   {processedContent}
                 </div>
               </div>
             </div>
           )}
-        </div>
-      </div>
-
-      {/* 底部元信息 */}
-      <div className="border-t border-gray-200 dark:border-gray-700 p-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {/* 标签 */}
-          <div>
-            <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Tags</h4>
-            <div className="flex flex-wrap gap-2">
-              {prompt.tags.map((tag) => (
-                <span
-                  key={tag}
-                  className="px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 text-xs font-medium rounded"
-                >
-                  {tag}
-                </span>
-              ))}
-              {prompt.tags.length === 0 && (
-                <span className="text-sm text-gray-400 dark:text-gray-500">No tags</span>
-              )}
-            </div>
-          </div>
-
-          {/* 变量 */}
-          <div>
-            <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Variables</h4>
-            <div className="text-sm text-gray-900 dark:text-white">
-              {prompt.variables.length > 0 ? (
-                <div className="flex flex-wrap gap-1">
-                  {prompt.variables.map((variable, index) => (
-                    <span key={variable}>
-                      <code className="bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 px-1 rounded">
-                        {variable}
-                      </code>
-                      {index < prompt.variables.length - 1 && ', '}
-                    </span>
-                  ))}
-                </div>
-              ) : (
-                <span className="text-gray-400 dark:text-gray-500">No variables</span>
-              )}
-            </div>
-          </div>
-
-          {/* 统计 */}
-          <div>
-            <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Statistics</h4>
-            <div className="text-sm text-gray-900 dark:text-white space-y-1">
-              <div>{prompt.content.length} characters</div>
-              <div>{prompt.content.split(/\s+/).length} words</div>
-              <div>{prompt.content.split('\n').length} lines</div>
-            </div>
-          </div>
-
-          {/* 时间信息 */}
-          <div>
-            <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Timestamps</h4>
-            <div className="text-sm text-gray-900 dark:text-white space-y-1">
-              <div>Created: {prompt.createdAt.toLocaleDateString()}</div>
-              <div>Updated: {prompt.updatedAt.toLocaleDateString()}</div>
-            </div>
-          </div>
         </div>
       </div>
     </div>

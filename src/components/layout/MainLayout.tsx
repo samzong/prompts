@@ -59,7 +59,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
         />
         
         {/* 内容区域 */}
-        <main className="flex-1 overflow-auto custom-scrollbar">
+        <main className="flex-1 overflow-auto custom-scrollbar" style={{ overscrollBehavior: 'none' }}>
           <div className="animate-fade-in">
             {children}
           </div>

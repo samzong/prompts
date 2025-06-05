@@ -33,6 +33,12 @@
   }
 }
 
+/* 全局禁用弹性滚动 */
+* {
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: auto;
+}
+
 /* 自定义滚动条样式 */
 .custom-scrollbar::-webkit-scrollbar {
   width: 6px;
@@ -67,6 +73,31 @@
 
 /* 平滑过渡 */
 @layer base {
+  /* 修复 Tauri 应用在 macOS 上的弹性滚动问题 */
+  html, body {
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+    margin: 0;
+    padding: 0;
+    /* 禁用弹性滚动 */
+    overscroll-behavior: none;
+    /* 禁用 WebKit 的弹性滚动 */
+    -webkit-overflow-scrolling: auto;
+    /* 确保不会出现意外的滚动条 */
+    position: fixed;
+    top: 0;
+    left: 0;
+  }
+
+  #root {
+    height: 100vh;
+    width: 100vw;
+    overflow: hidden;
+    /* 禁用弹性滚动 */
+    overscroll-behavior: none;
+  }
+
   body, button, a, input, textarea, select {
     @apply transition-colors duration-200;
   }
@@ -74,8 +105,6 @@
   body {
     @apply bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white;
   }
-  
-
 }
 
 /* 自定义组件样式 */

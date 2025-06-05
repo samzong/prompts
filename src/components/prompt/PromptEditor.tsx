@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Prompt, useAppStore } from '../../store';
-import CodeMirror from '@uiw/react-codemirror';
-import { markdown } from '@codemirror/lang-markdown';
-import { oneDark } from '@codemirror/theme-one-dark';
+import { EditorToolbar, StatusBar } from '../ui/Toolbar';
+import { useKeyboardShortcuts, createCommonShortcuts } from '../../hooks/useKeyboardShortcuts';
 
 interface PromptEditorProps {
   prompt?: Prompt;
@@ -24,34 +23,12 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({
   const [variables, setVariables] = useState<string[]>(prompt?.variables || []);
   const [showTagDropdown, setShowTagDropdown] = useState(false);
   const [availableTags, setAvailableTags] = useState<string[]>([]);
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
   
   const { tags: allTagsFromStore } = useAppStore();
-
-  // 检测暗色模式
-  useEffect(() => {
-    const isDark = document.documentElement.classList.contains('dark');
-    setIsDarkMode(isDark);
-    
-    // 监听暗色模式变化
-    const observer = new MutationObserver((mutations) => {
-      mutations.forEach((mutation) => {
-        if (mutation.attributeName === 'class') {
-          const isDark = document.documentElement.classList.contains('dark');
-          setIsDarkMode(isDark);
-        }
-      });
-    });
-    
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['class']
-    });
-    
-    return () => observer.disconnect();
-  }, []);
 
   // 获取可用的标签（排除已选择的）
   useEffect(() => {
@@ -114,7 +91,18 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({
     setShowTagDropdown(!showTagDropdown);
   };
 
-  const handleSave = () => {
+  // 检测是否有未保存的更改
+  useEffect(() => {
+    const hasChanges = 
+      title !== (prompt?.title || '') ||
+      description !== (prompt?.description || '') ||
+      content !== (prompt?.content || '') ||
+      JSON.stringify(tags) !== JSON.stringify(prompt?.tags || []);
+    
+    setIsDirty(hasChanges);
+  }, [title, description, content, tags, prompt]);
+
+  const handleSave = async () => {
     if (!title.trim() || !content.trim()) {
       return;
     }
@@ -131,39 +119,36 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({
       promptData.folderId = prompt.folderId;
     }
 
-    onSave(promptData);
+    try {
+      setIsLoading(true);
+      onSave(promptData);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const isValid = title.trim() && content.trim();
 
+  // 键盘快捷键
+  const shortcuts = createCommonShortcuts({
+    onSave: isValid ? handleSave : undefined,
+    onCancel: onCancel,
+  });
+
+  useKeyboardShortcuts(shortcuts);
+
   return (
     <div className="flex flex-col h-full bg-white dark:bg-gray-800">
-      {/* 头部 */}
-      <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-          {isEditing ? 'Edit Prompt' : 'Create New Prompt'}
-        </h2>
-        
-        <div className="flex items-center space-x-3">
-          <button
-            onClick={onCancel}
-            className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={!isValid}
-            className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-              isValid
-                ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                : 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
-            }`}
-          >
-            {isEditing ? 'Update' : 'Create'} Prompt
-          </button>
-        </div>
-      </div>
+      {/* 固定工具栏 */}
+      <EditorToolbar
+        title={isEditing ? 'Edit Prompt' : 'Create New Prompt'}
+        isEditing={isEditing === true}
+        onCancel={onCancel}
+        onSave={handleSave}
+        canSave={isValid}
+        isDirty={isDirty}
+        loading={isLoading}
+      />
 
       {/* 表单内容 */}
       <div className="flex-1 overflow-auto p-6">
@@ -297,36 +282,22 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({
             </p>
           </div>
 
-          {/* 内容 - 使用 CodeMirror */}
+          {/* 内容 - 使用 Textarea */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Content * <span className="text-xs text-gray-500">(Markdown Supported)</span>
+              Content *
             </label>
-            <div className="border border-gray-300 dark:border-gray-600 rounded-md overflow-hidden">
-              <CodeMirror
-                value={content}
-                onChange={(value) => setContent(value)}
-                extensions={[markdown()]}
-                theme={isDarkMode ? oneDark : 'light'}
-                placeholder="Enter your prompt content here. Use {variable_name} syntax for variables."
-                className="text-sm"
-                style={{
-                  minHeight: '300px',
-                  maxHeight: '500px'
-                }}
-                basicSetup={{
-                  lineNumbers: true,
-                  foldGutter: true,
-                  dropCursor: false,
-                  allowMultipleSelections: false,
-                  indentOnInput: true,
-                  bracketMatching: true,
-                  closeBrackets: true,
-                  autocompletion: true,
-                  highlightSelectionMatches: false
-                }}
-              />
-            </div>
+            <textarea
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              placeholder="Enter your prompt content here. Use {variable_name} syntax for variables."
+              className="w-full px-3 py-3 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none font-mono leading-relaxed"
+              style={{
+                minHeight: '300px',
+                maxHeight: '500px'
+              }}
+              rows={12}
+            />
             <div className="flex justify-between items-center mt-1">
               <p className="text-xs text-gray-500 dark:text-gray-400">
                 Use curly braces to define variables: {'{variable_name}'}. Variables will be automatically detected.
@@ -360,6 +331,24 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({
           )}
         </div>
       </div>
+
+      {/* 底部状态栏 */}
+      <StatusBar>
+        <div className="flex items-center space-x-4">
+          <span>{content.length} characters</span>
+          <span>{content.split(/\s+/).filter(word => word.length > 0).length} words</span>
+          <span>{content.split('\n').length} lines</span>
+          {variables.length > 0 && (
+            <span>{variables.length} variables detected</span>
+          )}
+        </div>
+        <div className="flex items-center space-x-4">
+          {isDirty && (
+            <span className="text-orange-600 dark:text-orange-400">Unsaved changes</span>
+          )}
+          <span>Plain text editor</span>
+        </div>
+      </StatusBar>
     </div>
   );
 }; 

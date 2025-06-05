@@ -22,7 +22,6 @@ export const PromptCard: React.FC<PromptCardProps> = ({
 }) => {
   const handleCopyClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    navigator.clipboard.writeText(prompt.content);
     onCopy?.(prompt);
   };
 

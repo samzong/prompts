@@ -1,4 +1,5 @@
 import React from 'react';
+import { writeText } from '@tauri-apps/plugin-clipboard-manager';
 import { Prompt } from '../../store';
 
 interface PromptPreviewProps {
@@ -16,9 +17,13 @@ export const PromptPreview: React.FC<PromptPreviewProps> = ({
   onCopy,
   onFullView,
 }) => {
-  const handleCopy = () => {
-    navigator.clipboard.writeText(prompt.content);
-    onCopy?.(prompt);
+  const handleCopy = async () => {
+    try {
+      await writeText(prompt.content);
+      onCopy?.(prompt);
+    } catch (error) {
+      console.error('Failed to copy prompt content:', error);
+    }
   };
 
   const highlightVariables = (text: string) => {

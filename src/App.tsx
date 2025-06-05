@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { writeText } from '@tauri-apps/plugin-clipboard-manager';
 import { MainLayout } from './components/layout/MainLayout';
 import { PromptCard } from './components/prompt/PromptCard';
 import { PromptDetailView } from './components/prompt/PromptDetailView';
@@ -145,7 +146,7 @@ function App() {
   const handlePromptCopy = async (prompt: any) => {
     try {
       const content = await copyPromptContent(prompt.id);
-      await navigator.clipboard.writeText(content);
+      await writeText(content);
       addToast(`Copied "${prompt.title}" to clipboard`, 'success');
     } catch (error) {
       console.error('Failed to copy prompt:', error);

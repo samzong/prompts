@@ -21,14 +21,11 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({
   const [description, setDescription] = useState(prompt?.description || '');
   const [content, setContent] = useState(prompt?.content || '');
   const [tags, setTags] = useState<string[]>(prompt?.tags || []);
-  const [tagInput, setTagInput] = useState('');
   const [variables, setVariables] = useState<string[]>(prompt?.variables || []);
   const [showTagDropdown, setShowTagDropdown] = useState(false);
-  const [filteredAvailableTags, setFilteredAvailableTags] = useState<string[]>([]);
-  const [allTags, setAllTags] = useState<string[]>([]);
+  const [availableTags, setAvailableTags] = useState<string[]>([]);
   const [isDarkMode, setIsDarkMode] = useState(false);
 
-  const tagInputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   
   const { tags: allTagsFromStore } = useAppStore();
@@ -56,12 +53,13 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({
     return () => observer.disconnect();
   }, []);
 
-  // 获取所有可用的标签
+  // 获取可用的标签（排除已选择的）
   useEffect(() => {
-    // 从 store 中的 tags 提取所有 tag 名称
-    const availableTagNames = allTagsFromStore.map(tag => tag.name);
-    setAllTags(availableTagNames);
-  }, [allTagsFromStore]);
+    const availableTagNames = allTagsFromStore
+      .map(tag => tag.name)
+      .filter(tagName => !tags.includes(tagName));
+    setAvailableTags(availableTagNames);
+  }, [allTagsFromStore, tags]);
 
   // 自动检测变量
   useEffect(() => {
@@ -79,75 +77,41 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({
     setVariables(detectedVariables);
   }, [content]);
 
-  // 过滤可用标签
-  useEffect(() => {
-    if (tagInput.trim()) {
-      const filtered = allTags.filter(tag => 
-        tag.toLowerCase().includes(tagInput.toLowerCase()) && 
-        !tags.includes(tag)
-      );
-      setFilteredAvailableTags(filtered);
-    } else {
-      const filtered = allTags.filter(tag => !tags.includes(tag));
-      setFilteredAvailableTags(filtered);
-    }
-  }, [tagInput, allTags, tags]);
-
-  // 处理点击外部关闭下拉框
+  // 处理点击外部关闭下拉框和键盘事件
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node) &&
-          tagInputRef.current && !tagInputRef.current.contains(event.target as Node)) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowTagDropdown(false);
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && showTagDropdown) {
         setShowTagDropdown(false);
       }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
     };
-  }, []);
+  }, [showTagDropdown]);
 
-  const handleTagInputKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' || e.key === ',') {
-      e.preventDefault();
-      addTag();
-    } else if (e.key === 'Backspace' && tagInput === '' && tags.length > 0) {
-      removeTag(tags.length - 1);
-    } else if (e.key === 'ArrowDown' && showTagDropdown && filteredAvailableTags.length > 0) {
-      e.preventDefault();
-      // 可以在这里添加键盘导航逻辑
-    } else if (e.key === 'Escape') {
-      setShowTagDropdown(false);
+  const addTag = (tag: string) => {
+    if (tag && !tags.includes(tag)) {
+      setTags([...tags, tag]);
     }
-  };
-
-  const handleTagInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setTagInput(value);
-    setShowTagDropdown(true);
-  };
-
-  const handleTagInputFocus = () => {
-    setShowTagDropdown(true);
-  };
-
-  const addTag = (tagToAdd?: string) => {
-    const trimmedTag = (tagToAdd || tagInput).trim().toLowerCase();
-    if (trimmedTag && !tags.includes(trimmedTag)) {
-      setTags([...tags, trimmedTag]);
-    }
-    setTagInput('');
-    setShowTagDropdown(false);
-    tagInputRef.current?.focus();
+    // 不关闭下拉菜单，允许连续选择多个标签
   };
 
   const removeTag = (index: number) => {
     setTags(tags.filter((_, i) => i !== index));
   };
 
-  const selectTagFromDropdown = (tag: string) => {
-    addTag(tag);
+  const toggleTagDropdown = () => {
+    setShowTagDropdown(!showTagDropdown);
   };
 
   const handleSave = () => {
@@ -233,80 +197,103 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({
             />
           </div>
 
-          {/* 标签 - 带下拉列表 */}
+          {/* 标签选择器 */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Tags
             </label>
-            <div className="relative">
+            <div className="space-y-3">
+              {/* 已选择的标签 */}
               <div className="flex flex-wrap gap-2 p-3 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 min-h-[42px]">
-                {tags.map((tag, index) => (
-                  <span
-                    key={index}
-                    className="inline-flex items-center px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 text-sm font-medium rounded"
-                  >
-                    {tag}
-                    <button
-                      onClick={() => removeTag(index)}
-                      className="ml-1 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300"
+                {tags.length > 0 ? (
+                  tags.map((tag, index) => (
+                    <span
+                      key={index}
+                      className="inline-flex items-center px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 text-sm font-medium rounded"
                     >
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  </span>
-                ))}
-                <input
-                  ref={tagInputRef}
-                  type="text"
-                  value={tagInput}
-                  onChange={handleTagInputChange}
-                  onKeyDown={handleTagInputKeyDown}
-                  onFocus={handleTagInputFocus}
-                  onBlur={() => {
-                    // 延迟关闭下拉框，允许点击下拉项
-                    setTimeout(() => {
-                      if (!dropdownRef.current?.contains(document.activeElement)) {
-                        setShowTagDropdown(false);
-                        addTag();
-                      }
-                    }, 150);
-                  }}
-                  className="flex-1 min-w-[120px] bg-transparent outline-none text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
-                  placeholder={tags.length === 0 ? "Add tags (press Enter or comma to add)" : "Add tag"}
-                />
+                      {tag}
+                      <button
+                        onClick={() => removeTag(index)}
+                        className="ml-1 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300"
+                      >
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-gray-500 dark:text-gray-400 text-sm">No tags selected</span>
+                )}
               </div>
               
-              {/* 标签下拉列表 */}
-              {showTagDropdown && filteredAvailableTags.length > 0 && (
-                <div
-                  ref={dropdownRef}
-                  className="absolute top-full left-0 right-0 z-50 mt-1 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md shadow-lg max-h-48 overflow-auto"
+              {/* 添加标签按钮和下拉菜单 */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={toggleTagDropdown}
+                  disabled={availableTags.length === 0}
+                  className={`inline-flex items-center px-3 py-2 border rounded-md text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                    availableTags.length > 0
+                      ? 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'
+                      : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                  }`}
                 >
-                  {filteredAvailableTags.slice(0, 10).map((tag) => (
-                    <button
-                      key={tag}
-                      onClick={() => selectTagFromDropdown(tag)}
-                      className="w-full text-left px-3 py-2 text-sm text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-600 focus:bg-gray-100 dark:focus:bg-gray-600 focus:outline-none"
-                    >
-                      <span className="flex items-center">
-                        <svg className="w-3 h-3 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                        </svg>
-                        {tag}
-                      </span>
-                    </button>
-                  ))}
-                  {filteredAvailableTags.length > 10 && (
-                    <div className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-600">
-                      {filteredAvailableTags.length - 10} more tags available. Type to filter.
-                    </div>
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
+                  {availableTags.length > 0 ? 'Add Tag' : 'All tags selected'}
+                  {availableTags.length > 0 && (
+                    <svg className="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
                   )}
+                </button>
+                  
+                                     {/* 下拉菜单 */}
+                   {showTagDropdown && (
+                     <div
+                       ref={dropdownRef}
+                       className="absolute top-full left-0 z-50 mt-1 w-64 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md shadow-lg max-h-48 overflow-hidden"
+                     >
+                       {availableTags.length > 0 ? (
+                         <>
+                           <div className="max-h-40 overflow-auto">
+                             {availableTags.map((tag) => (
+                               <button
+                                 key={tag}
+                                 onClick={() => addTag(tag)}
+                                 className="w-full text-left px-3 py-2 text-sm text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-600 focus:bg-gray-100 dark:focus:bg-gray-600 focus:outline-none"
+                               >
+                                 <span className="flex items-center">
+                                   <svg className="w-3 h-3 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                                   </svg>
+                                   {tag}
+                                 </span>
+                               </button>
+                             ))}
+                           </div>
+                           <div className="border-t border-gray-200 dark:border-gray-600 p-2">
+                             <button
+                               onClick={() => setShowTagDropdown(false)}
+                               className="w-full px-3 py-2 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                             >
+                               Done selecting tags
+                             </button>
+                           </div>
+                         </>
+                       ) : (
+                         <div className="px-3 py-4 text-sm text-gray-500 dark:text-gray-400 text-center">
+                           All available tags have been selected
+                         </div>
+                       )}
+                     </div>
+                   )}
                 </div>
-              )}
             </div>
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              Press Enter or comma to add tags. Click on existing tags from the dropdown to select them.
+              Click "Add Tag" to select multiple tags from available options. Click the × to remove selected tags. Press Esc or click "Done" to close the tag selector.
             </p>
           </div>
 

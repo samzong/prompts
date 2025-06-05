@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { writeText } from '@tauri-apps/plugin-clipboard-manager';
 import { Prompt } from '../../store';
 
 interface PromptDetailViewProps {
@@ -31,13 +32,21 @@ export const PromptDetailView: React.FC<PromptDetailViewProps> = ({
     setProcessedContent(processed);
   };
 
-  const handleCopyOriginal = () => {
-    navigator.clipboard.writeText(prompt.content);
-    onCopy?.(prompt);
+  const handleCopyOriginal = async () => {
+    try {
+      await writeText(prompt.content);
+      onCopy?.(prompt);
+    } catch (error) {
+      console.error('Failed to copy original content:', error);
+    }
   };
 
-  const handleCopyProcessed = () => {
-    navigator.clipboard.writeText(processedContent);
+  const handleCopyProcessed = async () => {
+    try {
+      await writeText(processedContent);
+    } catch (error) {
+      console.error('Failed to copy processed content:', error);
+    }
   };
 
   const highlightVariables = (text: string) => {

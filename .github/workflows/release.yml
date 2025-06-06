@@ -1,0 +1,164 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+      version: ${{ steps.get_version.outputs.version }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get version
+        id: get_version
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # 获取上一个标签
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          
+          # 生成更改日志
+          if [ "$PREV_TAG" != "" ]; then
+            CHANGELOG=$(git log --pretty=format:"- %s" $PREV_TAG..HEAD)
+          else
+            CHANGELOG="首次发布"
+          fi
+          
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          name: Release ${{ steps.get_version.outputs.version }}
+          body: |
+            ## 🎉 版本 ${{ steps.get_version.outputs.version }} 发布
+
+            ### 更改内容
+            ${{ steps.changelog.outputs.changelog }}
+
+            ### 下载
+            请选择适合您操作系统的安装包：
+            - **macOS**: `.dmg` 或 `.app.tar.gz`
+            - **Windows**: `.msi`
+            - **Linux**: `.AppImage` 或 `.deb`
+
+            ### 安装说明
+            - macOS: 下载 `.dmg` 文件，双击安装
+            - Windows: 下载 `.msi` 文件，双击安装
+            - Linux: 下载 `.AppImage` 文件，添加执行权限后运行
+          draft: false
+          prerelease: false
+
+  build-and-upload:
+    needs: create-release
+    strategy:
+      matrix:
+        include:
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            name: macOS ARM64
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            name: macOS Intel
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            name: Windows x64
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            name: Linux x64
+
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install Linux dependencies
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Build Tauri app
+        run: npm run tauri build -- --target ${{ matrix.target }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}-${{ needs.create-release.outputs.version }}
+          path: |
+            src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
+            src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.tar.gz
+            src-tauri/target/${{ matrix.target }}/release/bundle/msi/*.msi
+            src-tauri/target/${{ matrix.target }}/release/bundle/appimage/*.AppImage
+            src-tauri/target/${{ matrix.target }}/release/bundle/deb/*.deb
+                     if-no-files-found: ignore
+
+  upload-to-release:
+    needs: [create-release, build-and-upload]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Upload artifacts to release
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ needs.create-release.outputs.version }}
+          files: |
+            artifacts/*/*.dmg
+            artifacts/*/*.tar.gz
+            artifacts/*/*.msi
+            artifacts/*/*.AppImage
+            artifacts/*/*.deb
+
+  trigger-homebrew-update:
+    needs: [create-release, build-and-upload]
+    runs-on: ubuntu-latest
+    if: ${{ !github.event.release.prerelease }}
+    
+    steps:
+      - name: Trigger Homebrew update
+        run: |
+          curl -X POST \
+            -H "Authorization: token ${{ secrets.GH_PAT }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/repos/${{ github.repository }}/dispatches \
+            -d '{"event_type":"trigger-homebrew-update","client_payload":{"version":"v${{ needs.create-release.outputs.version }}"}}' 

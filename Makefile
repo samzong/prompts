@@ -2,6 +2,12 @@
 PROJECT_NAME := prompts
 VERSION := 0.1.0
 
+# Homebrew 相关变量
+HOMEBREW_TAP_REPO = homebrew-tap
+CASK_FILE = Casks/prompts.rb
+BRANCH_NAME = update-prompts-$(shell echo $(VERSION) | sed 's/v//')
+CLEAN_VERSION = $(shell echo $(VERSION) | sed 's/v//')
+
 # 颜色配置
 RED := \033[31m
 GREEN := \033[32m
@@ -43,7 +49,7 @@ endif
 help: ## 显示帮助信息
 	@echo "$(CYAN)$(PROJECT_NAME) v$(VERSION)$(RESET)"
 	@echo "$(YELLOW)可用命令:$(RESET)"
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(GREEN)%-20s$(RESET) %s\n", $$1, $$2}'
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(GREEN)%-22s$(RESET) %s\n", $$1, $$2}'
 
 # 开发环境
 .PHONY: install
@@ -209,6 +215,142 @@ tauri-info: ## 显示 Tauri 信息
 tauri-icon: ## 生成应用图标（需要 icon.png 文件）
 	npm run tauri icon
 
+# 版本发布
+.PHONY: release
+release: ## 发布新版本 (usage: make release VERSION=x.x.x)
+	@if [ -z "$(VERSION)" ]; then \
+		echo "$(RED)错误: 请指定版本号$(RESET)"; \
+		echo "使用方法: make release VERSION=x.x.x"; \
+		exit 1; \
+	fi
+	@echo "$(BLUE)发布版本 $(VERSION)...$(RESET)"
+	./scripts/release.sh $(VERSION)
+
+.PHONY: release-patch
+release-patch: ## 发布补丁版本 (0.1.0 -> 0.1.1)
+	@CURRENT_VERSION=$$(grep '"version"' package.json | head -1 | awk -F: '{ print $$2 }' | sed 's/[", ]//g'); \
+	PATCH_VERSION=$$(echo $$CURRENT_VERSION | awk -F. '{print $$1"."$$2"."($$3+1)}'); \
+	echo "$(BLUE)发布补丁版本: $$CURRENT_VERSION -> $$PATCH_VERSION$(RESET)"; \
+	./scripts/release.sh $$PATCH_VERSION patch
+
+.PHONY: release-minor
+release-minor: ## 发布次要版本 (0.1.0 -> 0.2.0)
+	@CURRENT_VERSION=$$(grep '"version"' package.json | head -1 | awk -F: '{ print $$2 }' | sed 's/[", ]//g'); \
+	MINOR_VERSION=$$(echo $$CURRENT_VERSION | awk -F. '{print $$1"."($$2+1)".0"}'); \
+	echo "$(BLUE)发布次要版本: $$CURRENT_VERSION -> $$MINOR_VERSION$(RESET)"; \
+	./scripts/release.sh $$MINOR_VERSION minor
+
+.PHONY: release-major
+release-major: ## 发布主要版本 (0.1.0 -> 1.0.0)
+	@CURRENT_VERSION=$$(grep '"version"' package.json | head -1 | awk -F: '{ print $$2 }' | sed 's/[", ]//g'); \
+	MAJOR_VERSION=$$(echo $$CURRENT_VERSION | awk -F. '{print ($$1+1)".0.0"}'); \
+	echo "$(BLUE)发布主要版本: $$CURRENT_VERSION -> $$MAJOR_VERSION$(RESET)"; \
+	./scripts/release.sh $$MAJOR_VERSION major
+
+.PHONY: build-release
+build-release: ## 构建发布包（所有平台）
+	@echo "$(BLUE)构建发布包...$(RESET)"
+	$(MAKE) clean
+	$(MAKE) build-all
+	$(MAKE) package-release
+	@echo "$(GREEN)✅ 发布包构建完成$(RESET)"
+
+.PHONY: package-release
+package-release: ## 打包发布文件
+	@echo "$(BLUE)打包发布文件...$(RESET)"
+	mkdir -p releases/$(VERSION)
+	find src-tauri/target -name "*.dmg" -exec cp {} releases/$(VERSION)/ \;
+	find src-tauri/target -name "*.app.tar.gz" -exec cp {} releases/$(VERSION)/ \;
+	find src-tauri/target -name "*.msi" -exec cp {} releases/$(VERSION)/ \;
+	find src-tauri/target -name "*.AppImage" -exec cp {} releases/$(VERSION)/ \;
+	find src-tauri/target -name "*.deb" -exec cp {} releases/$(VERSION)/ \;
+	@echo "$(GREEN)✅ 发布包已保存到 releases/$(VERSION)/$(RESET)"
+
+# 更新 Homebrew Cask
+.PHONY: update-homebrew
+update-homebrew: ## 更新 Homebrew Cask (需要设置 GH_PAT 环境变量)
+	@echo "$(BLUE)开始 Homebrew cask 更新流程...$(RESET)"
+	@if [ -z "$(GH_PAT)" ]; then \
+		echo "$(RED)错误: 需要设置 GH_PAT 环境变量$(RESET)"; \
+		exit 1; \
+	fi
+	@echo "$(YELLOW)当前版本信息:$(RESET)"
+	@echo "    - VERSION: $(VERSION)"
+	@echo "    - CLEAN_VERSION: $(CLEAN_VERSION)"
+
+	@echo "$(BLUE)准备工作目录...$(RESET)"
+	@rm -rf tmp && mkdir -p tmp
+	
+	@echo "$(BLUE)下载 DMG 文件...$(RESET)"
+	@curl -L -o tmp/Prompts-arm64.dmg "https://github.com/samzong/prompts/releases/download/v$(CLEAN_VERSION)/Prompts_$(CLEAN_VERSION)_macOS_ARM64.dmg"
+	@curl -L -o tmp/Prompts-x86_64.dmg "https://github.com/samzong/prompts/releases/download/v$(CLEAN_VERSION)/Prompts_$(CLEAN_VERSION)_macOS_Intel.dmg"
+
+	@echo "$(BLUE)计算 SHA256 校验和...$(RESET)"
+	@ARM64_SHA256=$$(shasum -a 256 tmp/Prompts-arm64.dmg | cut -d ' ' -f 1) && echo "    - ARM64 SHA256: $$ARM64_SHA256"
+	@X86_64_SHA256=$$(shasum -a 256 tmp/Prompts-x86_64.dmg | cut -d ' ' -f 1) && echo "    - x86_64 SHA256: $$X86_64_SHA256"
+
+	@echo "$(BLUE)克隆 Homebrew tap 仓库...$(RESET)"
+	@cd tmp && git clone https://$(GH_PAT)@github.com/samzong/$(HOMEBREW_TAP_REPO).git
+	@cd tmp/$(HOMEBREW_TAP_REPO) && echo "    - 创建新分支: $(BRANCH_NAME)" && git checkout -b $(BRANCH_NAME)
+
+	@echo "$(BLUE)更新 cask 文件...$(RESET)"
+	@ARM64_SHA256=$$(shasum -a 256 tmp/Prompts-arm64.dmg | cut -d ' ' -f 1) && \
+	X86_64_SHA256=$$(shasum -a 256 tmp/Prompts-x86_64.dmg | cut -d ' ' -f 1) && \
+	echo "$(BLUE)再次确认SHA256: ARM64=$$ARM64_SHA256, x86_64=$$X86_64_SHA256$(RESET)" && \
+	cd tmp/$(HOMEBREW_TAP_REPO) && \
+	echo "$(BLUE)当前目录: $$(pwd)$(RESET)" && \
+	echo "$(BLUE)CASK_FILE路径: $(CASK_FILE)$(RESET)" && \
+	if [ -f $(CASK_FILE) ]; then \
+		echo "    - 发现现有cask文件，使用sed更新..."; \
+		echo "    - cask文件内容 (更新前):"; \
+		cat $(CASK_FILE); \
+		sed -i '' "s/version \".*\"/version \"$(CLEAN_VERSION)\"/g" $(CASK_FILE); \
+		echo "    - 更新版本号后的cask文件内容:"; \
+		cat $(CASK_FILE); \
+		if grep -q "Hardware::CPU.arm" $(CASK_FILE); then \
+			echo "    - 更新ARM架构SHA256..."; \
+			sed -i '' "/if Hardware::CPU.arm/,/else/ s/sha256 \".*\"/sha256 \"$$ARM64_SHA256\"/g" $(CASK_FILE); \
+			echo "    - 更新Intel架构SHA256..."; \
+			sed -i '' "/else/,/end/ s/sha256 \".*\"/sha256 \"$$X86_64_SHA256\"/g" $(CASK_FILE); \
+			echo "    - 最终cask文件内容:"; \
+			cat $(CASK_FILE); \
+		else \
+			echo "$(RED)未找到 cask 格式，无法更新 SHA256 值$(RESET)"; \
+			exit 1; \
+		fi; \
+	else \
+		echo "$(RED)未找到cask文件: $(CASK_FILE)$(RESET)"; \
+		exit 1; \
+	fi
+
+	@echo "$(BLUE)检查更改...$(RESET)"
+	@cd tmp/$(HOMEBREW_TAP_REPO) && \
+	if ! git diff --quiet $(CASK_FILE); then \
+		echo "    - 检测到更改，创建 pull request..."; \
+		git add $(CASK_FILE); \
+		git config user.name "GitHub Actions"; \
+		git config user.email "actions@github.com"; \
+		git commit -m "chore: update prompts to v$(CLEAN_VERSION)"; \
+		git push -u origin $(BRANCH_NAME); \
+		echo "    - 准备创建PR数据..."; \
+		pr_data=$$(printf '{"title":"chore: update %s to v%s","body":"Auto-generated PR\\n\\n- Version: %s\\n- ARM64 SHA256: %s\\n- x86_64 SHA256: %s","head":"%s","base":"main"}' \
+			"prompts" "$(CLEAN_VERSION)" "$(CLEAN_VERSION)" "$$ARM64_SHA256" "$$X86_64_SHA256" "$(BRANCH_NAME)"); \
+		echo "    - PR数据: $$pr_data"; \
+		curl -X POST \
+			-H "Authorization: token $(GH_PAT)" \
+			-H "Content-Type: application/json" \
+			https://api.github.com/repos/samzong/$(HOMEBREW_TAP_REPO)/pulls \
+			-d "$$pr_data"; \
+		echo "$(GREEN)✅ Pull request 创建成功$(RESET)"; \
+	else \
+		echo "$(RED)cask 文件中没有检测到更改$(RESET)"; \
+		exit 1; \
+	fi
+
+	@echo "$(BLUE)清理临时文件...$(RESET)"
+	@rm -rf tmp
+	@echo "$(GREEN)✅ Homebrew cask 更新流程完成$(RESET)"
+
 # 快速命令
 .PHONY: quick-dev
 quick-dev: install dev ## 快速开始开发（安装依赖+启动开发）
@@ -217,4 +359,4 @@ quick-dev: install dev ## 快速开始开发（安装依赖+启动开发）
 quick-build: clean build-app ## 快速构建（清理+构建）
 
 .PHONY: quick-release
-quick-release: clean-all install release ## 快速发布（完全清理+安装+发布） 
+quick-release: clean-all install build-release ## 快速发布（完全清理+安装+构建发布包） 

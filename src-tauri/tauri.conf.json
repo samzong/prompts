@@ -37,9 +37,9 @@
     "active": true,
     "targets": "all",
     "category": "Productivity",
-    "copyright": "Copyright © 2024 Samzong. All rights reserved.",
-    "shortDescription": "System-level prompt management for macOS",
-    "longDescription": "A free and open source prompt management tool for macOS. System-level prompt management tool that's not bound by any specific application.",
+    "copyright": "Copyright © 2025 Samzong. All rights reserved.",
+    "shortDescription": "System-level prompt management for Users",
+    "longDescription": "A free and open source prompt management tool for Users. System-level prompt management tool that's not bound by any specific application.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

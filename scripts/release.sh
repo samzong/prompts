@@ -88,7 +88,7 @@ fi
 
 # 构建项目进行验证
 echo -e "${BLUE}🔨 构建项目验证...${NC}"
-if make build-app; then
+if make build-all; then
     echo -e "${GREEN}✅ 构建成功${NC}"
 else
     echo -e "${RED}❌ 构建失败，发布已终止${NC}"

@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
+import { PhysicalPosition } from '@tauri-apps/api/dpi';
 import { writeText } from '@tauri-apps/plugin-clipboard-manager';
 import { promptService } from '../services/promptService';
-import { Prompt } from '../store';
+import { settingsService } from '../services/settingsService';
+import { Prompt, useAppStore } from '../store';
 import { clsx } from 'clsx';
 
 interface QuickPickerResult {
@@ -26,6 +28,94 @@ export const QuickPicker: React.FC = () => {
   
   const inputRef = useRef<HTMLInputElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  
+  // 获取设置更新函数
+  const { settings, updateSettings } = useAppStore();
+  
+  // 初始化窗口位置
+  const initializeWindowPosition = useCallback(async () => {
+    try {
+      const window = getCurrentWebviewWindow();
+      
+      // 直接从文件加载设置，避免 store 依赖
+      await settingsService.initialize();
+      const currentSettings = await settingsService.loadSettings();
+      
+      const savedPosition = currentSettings?.quickPicker?.position || settings.quickPicker.position;
+      
+      console.log('Initializing window position with saved position:', savedPosition); // 调试日志
+      
+      if (savedPosition && 
+          typeof savedPosition.x === 'number' && 
+          typeof savedPosition.y === 'number' &&
+          !isNaN(savedPosition.x) && 
+          !isNaN(savedPosition.y)) {
+        // 使用保存的位置，创建 PhysicalPosition 对象
+        console.log('Restoring to saved position:', savedPosition);
+        const physicalPosition = new PhysicalPosition(savedPosition.x, savedPosition.y);
+        await window.setPosition(physicalPosition);
+      } else {
+        // 使用默认居中位置
+        console.log('No saved position or invalid position data, centering window');
+        await window.center();
+      }
+    } catch (error) {
+      console.error('Error initializing window position:', error);
+      // 出错时默认居中
+      try {
+        const window = getCurrentWebviewWindow();
+        await window.center();
+      } catch (centerError) {
+        console.error('Failed to center window:', centerError);
+      }
+    }
+  }, [settings.quickPicker.position]);
+  
+  // 保存窗口位置
+  const saveWindowPosition = useCallback(async () => {
+    try {
+      const window = getCurrentWebviewWindow();
+      const position = await window.outerPosition();
+      
+      console.log('Saving window position:', position); // 调试日志
+      
+      // 直接使用设置服务，避免 store 依赖
+      await settingsService.initialize();
+      const currentSettings = await settingsService.loadSettings() || settings;
+      
+      // 确保保存的是简单的数字坐标对象
+      const positionData = {
+        x: Math.round(position.x),
+        y: Math.round(position.y)
+      };
+      
+      const newSettings = {
+        ...currentSettings,
+        quickPicker: {
+          ...currentSettings.quickPicker,
+          position: positionData
+        }
+      };
+      
+      await settingsService.saveSettings(newSettings);
+      
+      // 同时更新 store 中的设置
+      try {
+        await updateSettings({
+          quickPicker: {
+            position: positionData
+          }
+        });
+      } catch (storeError) {
+        console.warn('Failed to update store settings, but file saved:', storeError);
+      }
+      
+      console.log('Window position saved successfully'); // 调试日志
+    } catch (error) {
+      console.error('Failed to save window position:', error);
+    }
+  }, [updateSettings, settings]);
   
   // 直接加载最新数据，而不依赖可能过时的 store 状态
   const loadLatestData = useCallback(async () => {
@@ -35,16 +125,24 @@ export const QuickPicker: React.FC = () => {
       setCopiedItemId(null);
       setShowCopiedFeedback(false);
       
+      // 初始化所有服务
       await promptService.initialize();
+      await settingsService.initialize();
+      
       const latestPrompts = await promptService.getAllPrompts();
       setPrompts(latestPrompts);
+      
+      // 延迟初始化窗口位置，确保设置已加载
+      setTimeout(async () => {
+        await initializeWindowPosition();
+      }, 100);
     } catch (error) {
       console.error('Failed to load latest prompts:', error);
       setPrompts([]);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [initializeWindowPosition]);
 
   // 组件挂载时加载最新数据
   useEffect(() => {
@@ -75,22 +173,8 @@ export const QuickPicker: React.FC = () => {
   // 搜索函数
   const searchPrompts = useCallback((searchQuery: string): QuickPickerResult[] => {
     if (!searchQuery.trim()) {
-      // 如果没有搜索词，返回最近使用的前3个
-      return prompts
-        .sort((a, b) => (b.usageCount || 0) - (a.usageCount || 0))
-        .slice(0, 3)
-        .map(prompt => {
-          const result: QuickPickerResult = {
-            id: prompt.id,
-            title: prompt.title,
-            content: prompt.content,
-            tags: prompt.tags,
-          };
-          if (prompt.description) {
-            result.description = prompt.description;
-          }
-          return result;
-        });
+      // 如果没有搜索词，返回空结果，只显示实时搜索反馈
+      return [];
     }
 
     const query = searchQuery.toLowerCase();
@@ -140,8 +224,8 @@ export const QuickPicker: React.FC = () => {
       })
       .filter((item): item is NonNullable<typeof item> => item !== null)
       .sort((a, b) => (b.score || 0) - (a.score || 0))
-      .slice(0, 3); // 最多显示3个结果
-
+      // 移除结果数量限制，显示所有匹配的结果
+      
     return matchedPrompts as QuickPickerResult[];
   }, [prompts]);
 
@@ -158,9 +242,12 @@ export const QuickPicker: React.FC = () => {
 
   // 定义处理函数
   const handleClose = useCallback(async () => {
+    // 关闭前保存位置
+    await saveWindowPosition();
+    
     const window = getCurrentWebviewWindow();
     await window.hide();
-  }, []);
+  }, [saveWindowPosition]);
 
   const handleCopy = useCallback(async (result: QuickPickerResult) => {
     try {
@@ -241,6 +328,31 @@ export const QuickPicker: React.FC = () => {
     return () => window.removeEventListener('keydown', handleWindowKeyDown, { capture: true });
   }, [handleClose]);
 
+  // 使用 Tauri 内置拖拽功能
+  const handleStartDrag = useCallback(async (e: React.MouseEvent) => {
+    // 检查是否点击在不应该触发拖拽的元素上
+    const target = e.target as Element;
+    const isInput = target.tagName === 'INPUT' || target.closest('input');
+    const isButton = target.tagName === 'BUTTON' || target.closest('button');
+    const isInteractive = target.closest('[role="button"]') || target.closest('a');
+    
+    // 如果点击的不是交互元素，则启用拖拽
+    if (!isInput && !isButton && !isInteractive) {
+      console.log('Starting drag...'); // 调试日志
+      try {
+        const window = getCurrentWebviewWindow();
+        await window.startDragging();
+        
+        // 拖拽结束后保存位置
+        setTimeout(async () => {
+          await saveWindowPosition();
+        }, 800); // 增加延迟确保拖拽完成
+      } catch (error) {
+        console.error('Error starting drag:', error);
+      }
+    }
+  }, [saveWindowPosition]);
+
   // 滚动到选中项
   useEffect(() => {
     if (resultsRef.current && selectedIndex >= 0) {
@@ -274,15 +386,35 @@ export const QuickPicker: React.FC = () => {
     return content.substring(0, maxLength) + '...';
   };
 
+  // 计算动态高度
+  const calculateHeight = () => {
+    const headerHeight = 49; // 搜索框区域高度（包括border）
+    const footerHeight = results.length > 0 ? 33 : 0; // 底部提示区域高度（包括border）
+    const itemHeight = 68; // 每个结果项约68px（包括padding和margin）
+    const maxItems = 5; // 最多显示5个项目不滚动
+    const minContentHeight = 80; // 最小内容区域高度（空状态提示）
+    const loadingHeight = 60; // 加载状态的高度
+    
+    let contentHeight;
+    if (isLoading) {
+      contentHeight = loadingHeight;
+    } else if (results.length === 0) {
+      contentHeight = minContentHeight; // 空状态时的最小高度
+    } else if (results.length <= maxItems) {
+      contentHeight = results.length * itemHeight + 8; // 额外的8px用于容器padding
+    } else {
+      contentHeight = maxItems * itemHeight + 8; // 超过5个时固定高度，启用滚动
+    }
+    
+    return headerHeight + contentHeight + footerHeight;
+  };
+
   return (
     <div 
-      className={clsx(
-        "bg-white/95 dark:bg-gray-900/95 backdrop-blur-xl border border-gray-200/50 dark:border-gray-700/50 rounded-xl shadow-2xl transition-all duration-200",
-        // 动态高度：根据内容调整
-        results.length === 0 && !isLoading
-          ? "h-auto" // 空状态时使用自动高度
-          : "h-full" // 有内容时使用全高度
-      )}
+      ref={containerRef}
+      className="bg-white/95 dark:bg-gray-900/95 backdrop-blur-xl border border-gray-200/50 dark:border-gray-700/50 rounded-xl shadow-2xl transition-all duration-200 flex flex-col cursor-grab hover:cursor-grab"
+      style={{ height: `${calculateHeight()}px` }}
+      onMouseDown={handleStartDrag}
     >
       {/* 搜索框区域 - 更紧凑 */}
       <div className="p-3 border-b border-gray-200 dark:border-gray-700">
@@ -298,7 +430,7 @@ export const QuickPicker: React.FC = () => {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search prompts..."
-            className="w-full pl-8 pr-3 py-2 bg-transparent border-0 focus:outline-none focus:ring-0 text-sm placeholder-gray-400 text-gray-900 dark:text-white"
+            className="w-full pl-8 pr-3 py-2 bg-transparent border-0 focus:outline-none focus:ring-0 text-sm placeholder-gray-400 text-gray-900 dark:text-white cursor-text"
             autoComplete="off"
             spellCheck={false}
           />
@@ -308,12 +440,10 @@ export const QuickPicker: React.FC = () => {
       {/* 结果列表区域 - 动态高度 */}
       <div 
         ref={resultsRef}
-        className={clsx(
-          "overflow-y-auto",
-          results.length === 0 && !isLoading
-            ? "max-h-24" // 空状态时很小的高度
-            : "max-h-64" // 有内容时的最大高度
-        )}
+        className="flex-1 overflow-y-auto"
+        style={{
+          minHeight: results.length === 0 && !isLoading ? '80px' : 'auto',
+        }}
       >
         {isLoading ? (
           <div className="flex items-center justify-center py-6">
@@ -321,12 +451,14 @@ export const QuickPicker: React.FC = () => {
           </div>
         ) : results.length === 0 ? (
           <div className="text-center py-4 px-4 text-gray-500 dark:text-gray-400">
-            <svg className="w-8 h-8 mx-auto mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-            <p className="text-xs">
-              {query.trim() ? 'No prompts found' : 'Start typing to search prompts'}
-            </p>
+            {query.trim() && (
+              <>
+                <svg className="w-8 h-8 mx-auto mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <p className="text-xs">No prompts found</p>
+              </>
+            )}
           </div>
         ) : (
           <div className="py-1">
@@ -342,7 +474,7 @@ export const QuickPicker: React.FC = () => {
                 onClick={() => handleCopy(result)}
                 onMouseEnter={() => setHoveredIndex(index)}
                 onMouseLeave={() => setHoveredIndex(-1)}
-              >
+                  >
                 <div className="flex items-center justify-between">
                   <div className="flex-1 min-w-0">
                     {/* 单行布局：标题 + 简短预览 */}
@@ -423,7 +555,7 @@ export const QuickPicker: React.FC = () => {
       </div>
 
       {/* 底部提示 - 只在有结果时显示，更紧凑 */}
-      {(results.length > 0 || isLoading) && (
+      {results.length > 0 && (
         <div className="px-3 py-1.5 border-t border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50">
           <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
             <div className="flex items-center gap-3">

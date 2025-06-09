@@ -58,6 +58,12 @@ export interface AppSettings {
     showInDock: boolean;
     showTrayIcon: boolean;
   };
+  quickPicker: {
+    position: {
+      x: number;
+      y: number;
+    } | null; // null 表示使用默认居中位置
+  };
 }
 
 // 应用状态接口
@@ -153,6 +159,9 @@ const defaultSettings: AppSettings = {
     startAtLogin: false,
     showInDock: true,
     showTrayIcon: true,
+  },
+  quickPicker: {
+    position: null, // 默认居中
   },
 };
 
@@ -600,7 +609,38 @@ export const useAppStore = create<AppState>((set, get) => ({
   updateSettings: async (updates) => {
     try {
       const currentSettings = get().settings;
-      const newSettings = { ...currentSettings, ...updates };
+      // 深度合并嵌套对象
+      const newSettings = {
+        ...currentSettings,
+        ...updates,
+        // 特殊处理嵌套对象
+        ...(updates.quickPicker && {
+          quickPicker: {
+            ...currentSettings.quickPicker,
+            ...updates.quickPicker
+          }
+        }),
+        ...(updates.globalShortcut && {
+          globalShortcut: {
+            ...currentSettings.globalShortcut,
+            ...updates.globalShortcut
+          }
+        }),
+        ...(updates.appearance && {
+          appearance: {
+            ...currentSettings.appearance,
+            ...updates.appearance
+          }
+        }),
+        ...(updates.general && {
+          general: {
+            ...currentSettings.general,
+            ...updates.general
+          }
+        })
+      };
+      
+      console.log('Updating settings:', { currentSettings, updates, newSettings }); // 调试日志
       
       // 如果更新了全局快捷键设置，需要同时更新后端
       if (updates.globalShortcut) {
@@ -612,6 +652,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       
       await settingsService.saveSettings(newSettings);
       set({ settings: newSettings });
+      
+      console.log('Settings updated successfully'); // 调试日志
     } catch (error) {
       console.error('Failed to update settings:', error);
       throw error;

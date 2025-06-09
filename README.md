@@ -42,8 +42,8 @@ https://github.com/user-attachments/assets/50b02fe6-e81b-4cbb-bf89-c5fb9997ca1b
 
 - **Intelligent Ranking**: Prioritizes title matches and recent usage
 - **Keyboard Navigation**: `↑↓` to navigate, `Enter` to copy, `Esc` to close
-- **Limited Results**: Shows top 3 matches for focused selection
-- **Recent Access**: Displays frequently used prompts first
+- **Real-time Results**: Shows all matching prompts as you type
+- **Smart Filtering**: Empty search shows no results, encouraging focused search
 
 ### 🔧 **Smart Variable System**
 

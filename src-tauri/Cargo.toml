@@ -1,6 +1,6 @@
 [package]
 name = "prompts"
-version = "0.1.4"
+version = "0.1.5"
 description = "System-level prompt management for Users"
 authors = ["Samzong"]
 edition = "2021"

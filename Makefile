@@ -266,8 +266,8 @@ update-homebrew: ## 更新 Homebrew Cask (需要设置 GH_PAT 环境变量)
 	@rm -rf tmp && mkdir -p tmp
 	
 	@echo "$(BLUE)下载 DMG 文件...$(RESET)"
-	@curl -L -o tmp/Prompts-arm64.dmg "https://github.com/samzong/prompts/releases/download/v$(CLEAN_VERSION)/Prompts_$(CLEAN_VERSION)_macOS_ARM64.dmg"
-	@curl -L -o tmp/Prompts-x86_64.dmg "https://github.com/samzong/prompts/releases/download/v$(CLEAN_VERSION)/Prompts_$(CLEAN_VERSION)_macOS_Intel.dmg"
+	@curl -L -o tmp/Prompts-arm64.dmg "https://github.com/samzong/prompts/releases/download/v$(CLEAN_VERSION)/Prompts_$(CLEAN_VERSION)_aarch64.dmg"
+	@curl -L -o tmp/Prompts-x86_64.dmg "https://github.com/samzong/prompts/releases/download/v$(CLEAN_VERSION)/Prompts_$(CLEAN_VERSION)_x64.dmg"
 
 	@echo "$(BLUE)计算 SHA256 校验和...$(RESET)"
 	@ARM64_SHA256=$$(shasum -a 256 tmp/Prompts-arm64.dmg | cut -d ' ' -f 1) && echo "    - ARM64 SHA256: $$ARM64_SHA256"
@@ -285,18 +285,29 @@ update-homebrew: ## 更新 Homebrew Cask (需要设置 GH_PAT 环境变量)
 	echo "$(BLUE)当前目录: $$(pwd)$(RESET)" && \
 	echo "$(BLUE)CASK_FILE路径: $(CASK_FILE)$(RESET)" && \
 	if [ -f $(CASK_FILE) ]; then \
-		echo "    - 发现现有cask文件，使用sed更新..."; \
-		echo "    - cask文件内容 (更新前):"; \
+		echo "$(BLUE)发现现有cask文件，使用sed更新...$(RESET)"; \
+		echo "$(BLUE)cask文件内容 (更新前):$(RESET)"; \
 		cat $(CASK_FILE); \
+		echo "$(BLUE)更新版本号...$(RESET)"; \
 		sed -i '' "s/version \".*\"/version \"$(CLEAN_VERSION)\"/g" $(CASK_FILE); \
-		echo "    - 更新版本号后的cask文件内容:"; \
+		echo "$(BLUE)更新版本号后的cask文件内容:$(RESET)"; \
 		cat $(CASK_FILE); \
 		if grep -q "Hardware::CPU.arm" $(CASK_FILE); then \
-			echo "    - 更新ARM架构SHA256..."; \
-			sed -i '' "/if Hardware::CPU.arm/,/else/ s/sha256 \".*\"/sha256 \"$$ARM64_SHA256\"/g" $(CASK_FILE); \
-			echo "    - 更新Intel架构SHA256..."; \
-			sed -i '' "/else/,/end/ s/sha256 \".*\"/sha256 \"$$X86_64_SHA256\"/g" $(CASK_FILE); \
-			echo "    - 最终cask文件内容:"; \
+			echo "$(BLUE)更新ARM架构SHA256...$(RESET)"; \
+			ARM_LINE_NUM=$$(grep -n "if Hardware::CPU.arm" $(CASK_FILE) | cut -d: -f1); \
+			ARM_SHA_LINE_NUM=$$(tail -n +$$ARM_LINE_NUM $(CASK_FILE) | grep -n "sha256" | head -1 | cut -d: -f1); \
+			ARM_SHA_LINE_NUM=$$((ARM_LINE_NUM + ARM_SHA_LINE_NUM - 1)); \
+			sed -i '' "$${ARM_SHA_LINE_NUM}s/sha256 \".*\"/sha256 \"$$ARM64_SHA256\"/" $(CASK_FILE); \
+			echo "$(BLUE)ARM SHA256 已更新在第 $$ARM_SHA_LINE_NUM 行$(RESET)"; \
+			echo "$(BLUE)中间状态检查:$(RESET)"; \
+			cat $(CASK_FILE); \
+			echo "$(BLUE)更新Intel架构SHA256...$(RESET)"; \
+			ELSE_LINE_NUM=$$(grep -n "else" $(CASK_FILE) | cut -d: -f1); \
+			INTEL_SHA_LINE_NUM=$$(tail -n +$$ELSE_LINE_NUM $(CASK_FILE) | grep -n "sha256" | head -1 | cut -d: -f1); \
+			INTEL_SHA_LINE_NUM=$$((ELSE_LINE_NUM + INTEL_SHA_LINE_NUM - 1)); \
+			sed -i '' "$${INTEL_SHA_LINE_NUM}s/sha256 \".*\"/sha256 \"$$X86_64_SHA256\"/" $(CASK_FILE); \
+			echo "$(BLUE)Intel SHA256 已更新在第 $$INTEL_SHA_LINE_NUM 行$(RESET)"; \
+			echo "$(BLUE)最终cask文件内容:$(RESET)"; \
 			cat $(CASK_FILE); \
 		else \
 			echo "$(RED)未找到 cask 格式，无法更新 SHA256 值$(RESET)"; \

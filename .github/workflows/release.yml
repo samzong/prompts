@@ -60,12 +60,10 @@ jobs:
             请选择适合您操作系统的安装包：
             - **macOS**: `.dmg` 或 `.app.tar.gz`
             - **Windows**: `.msi`
-            - **Linux**: `.AppImage` 或 `.deb`
 
             ### 安装说明
             - macOS: 下载 `.dmg` 文件，双击安装
             - Windows: 下载 `.msi` 文件，双击安装
-            - Linux: 下载 `.AppImage` 文件，添加执行权限后运行
           draft: false
           prerelease: false
 
@@ -83,9 +81,6 @@ jobs:
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             name: Windows x64
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            name: Linux x64
 
     runs-on: ${{ matrix.os }}
     
@@ -127,8 +122,6 @@ jobs:
             src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
             src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.tar.gz
             src-tauri/target/${{ matrix.target }}/release/bundle/msi/*.msi
-            src-tauri/target/${{ matrix.target }}/release/bundle/appimage/*.AppImage
-            src-tauri/target/${{ matrix.target }}/release/bundle/deb/*.deb
                      if-no-files-found: ignore
 
   upload-to-release:
@@ -150,8 +143,6 @@ jobs:
             artifacts/*/*.dmg
             artifacts/*/*.tar.gz
             artifacts/*/*.msi
-            artifacts/*/*.AppImage
-            artifacts/*/*.deb
 
   trigger-homebrew-update:
     needs: [create-release, build-and-upload]

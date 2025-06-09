@@ -1,6 +1,6 @@
 # 项目名称和版本
 PROJECT_NAME := prompts
-VERSION := 0.1.1
+VERSION := 0.1.2
 
 # Homebrew 相关变量
 HOMEBREW_TAP_REPO = homebrew-tap

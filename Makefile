@@ -65,62 +65,17 @@ dev: ## 启动开发服务器
 	@echo "$(BLUE)启动开发环境...$(RESET)"
 	npm run tauri dev
 
-.PHONY: dev-web
-dev-web: ## 仅启动前端开发服务器
-	@echo "$(BLUE)启动前端开发服务器...$(RESET)"
-	npm run dev
-
-# 构建
-.PHONY: build
-build: ## 构建项目
-	@echo "$(BLUE)构建前端...$(RESET)"
-	npm run build
-	@echo "$(GREEN)✅ 前端构建完成$(RESET)"
-
-.PHONY: build-app
-build-app: build ## 构建 Tauri 应用
-	@echo "$(BLUE)构建 Tauri 应用...$(RESET)"
-	npm run tauri build
-	@echo "$(GREEN)✅ 应用构建完成$(RESET)"
-
 # 多平台构建
 .PHONY: build-all
-build-all: ## 构建主要平台的安装包（macOS M1, x86, Windows）
-	@echo "$(BLUE)开始构建主要平台...$(RESET)"
+build-all: ## 构建所有支持的平台 (macOS M1, Intel, Windows)
+	@echo "$(BLUE)构建所有支持平台...$(RESET)"
 	$(MAKE) build-macos-arm64
-	$(MAKE) build-macos-intel
-	$(MAKE) build-windows
-	@echo "$(GREEN)✅ 主要平台构建完成$(RESET)"
-
-.PHONY: build-all-platforms
-build-all-platforms: ## 构建所有平台的安装包（包括 Linux）
-	@echo "$(BLUE)开始构建所有平台...$(RESET)"
-	$(MAKE) build-linux
-	$(MAKE) build-macos-all
+	$(MAKE) build-macos-intel  
 	$(MAKE) build-windows
 	@echo "$(GREEN)✅ 所有平台构建完成$(RESET)"
 
-.PHONY: build-linux
-build-linux: ## 构建 Linux 平台安装包
-	@echo "$(BLUE)构建 Linux 平台...$(RESET)"
-	npm run tauri build -- --target x86_64-unknown-linux-gnu
-	@echo "$(GREEN)✅ Linux 构建完成$(RESET)"
-
-.PHONY: build-linux-docker
-build-linux-docker: ## 使用 Docker 构建 Linux 平台安装包
-	@echo "$(BLUE)使用 Docker 构建 Linux 平台...$(RESET)"
-	docker build -f Dockerfile.linux -t prompts-linux-builder .
-	docker run --rm -v "$(PWD)/src-tauri/target:/app/src-tauri/target" prompts-linux-builder
-	@echo "$(GREEN)✅ Linux Docker 构建完成$(RESET)"
-
-.PHONY: build-macos
-build-macos: ## 构建当前 macOS 架构
-	@echo "$(BLUE)构建当前 macOS 平台 ($(CURRENT_ARCH))...$(RESET)"
-	npm run tauri build -- --target $(CURRENT_DARWIN_TARGET)
-	@echo "$(GREEN)✅ macOS $(CURRENT_ARCH) 构建完成$(RESET)"
-
 .PHONY: build-macos-arm64
-build-macos-arm64: ## 构建 macOS ARM64 (Apple Silicon)
+build-macos-arm64: ## 构建 macOS ARM64 (Apple Silicon/M1)
 	@echo "$(BLUE)构建 macOS ARM64 (Apple Silicon)...$(RESET)"
 	npm run tauri build -- --target aarch64-apple-darwin
 	@echo "$(GREEN)✅ macOS ARM64 构建完成$(RESET)"
@@ -131,18 +86,22 @@ build-macos-intel: ## 构建 macOS x86_64 (Intel)
 	npm run tauri build -- --target x86_64-apple-darwin
 	@echo "$(GREEN)✅ macOS Intel 构建完成$(RESET)"
 
-.PHONY: build-macos-all
-build-macos-all: ## 构建所有 macOS 架构
-	@echo "$(BLUE)构建所有 macOS 架构...$(RESET)"
-	$(MAKE) build-macos-arm64
-	$(MAKE) build-macos-intel
-	@echo "$(GREEN)✅ 所有 macOS 架构构建完成$(RESET)"
-
 .PHONY: build-windows
-build-windows: ## 构建 Windows 平台安装包
+build-windows: setup-windows-cross ## 构建 Windows 平台安装包
 	@echo "$(BLUE)构建 Windows 平台...$(RESET)"
 	npm run tauri build -- --target x86_64-pc-windows-msvc
 	@echo "$(GREEN)✅ Windows 构建完成$(RESET)"
+
+.PHONY: build
+build: ## 构建当前系统架构
+ifeq ($(PLATFORM),macos)
+	@echo "$(BLUE)构建当前 macOS 平台 ($(CURRENT_ARCH))...$(RESET)"
+	npm run tauri build -- --target $(CURRENT_DARWIN_TARGET)
+	@echo "$(GREEN)✅ macOS $(CURRENT_ARCH) 构建完成$(RESET)"
+else
+	@echo "$(RED)错误: 当前平台 $(PLATFORM) 不支持构建$(RESET)"
+	@exit 1
+endif
 
 # 清理
 .PHONY: clean
@@ -154,21 +113,67 @@ clean: ## 清理构建文件
 	@echo "$(GREEN)✅ 清理完成$(RESET)"
 
 .PHONY: clean-all
-clean-all: clean ## 清理所有文件（包括依赖）
-	@echo "$(BLUE)清理所有文件...$(RESET)"
-	rm -rf node_modules
-	cd src-tauri && cargo clean
+clean-all: clean ## 清理所有文件（包括交叉编译环境）
+	@echo "$(BLUE)清理交叉编译环境...$(RESET)"
+	rm -rf .cargo/config.toml
+	rm -rf $(HOME)/.xwin
 	@echo "$(GREEN)✅ 完全清理完成$(RESET)"
 
 # 工具
 .PHONY: setup-targets
 setup-targets: ## 安装跨平台编译目标
 	@echo "$(BLUE)安装跨平台编译目标...$(RESET)"
-	rustup target add x86_64-unknown-linux-gnu
 	rustup target add x86_64-pc-windows-msvc
 	rustup target add aarch64-apple-darwin
 	rustup target add x86_64-apple-darwin
 	@echo "$(GREEN)✅ 编译目标安装完成$(RESET)"
+
+# Windows 交叉编译设置
+XWIN_DIR := $(HOME)/.xwin
+CARGO_CONFIG_FILE := .cargo/config.toml
+
+.PHONY: check-xwin
+check-xwin:
+	@if ! command -v xwin >/dev/null 2>&1; then \
+		echo "$(YELLOW)xwin 未安装，正在安装...$(RESET)"; \
+		cargo install xwin; \
+	fi
+
+.PHONY: setup-xwin-sdk
+setup-xwin-sdk: check-xwin
+	@if [ ! -d "$(XWIN_DIR)" ]; then \
+		echo "$(YELLOW)Windows SDK 未下载，正在下载到 $(XWIN_DIR)...$(RESET)"; \
+		mkdir -p $(XWIN_DIR); \
+		xwin --accept-license splat --output $(XWIN_DIR); \
+	else \
+		echo "$(GREEN)Windows SDK 已存在于 $(XWIN_DIR)$(RESET)"; \
+	fi
+
+.PHONY: setup-cargo-config
+setup-cargo-config:
+	@mkdir -p .cargo
+	@if [ ! -f "$(CARGO_CONFIG_FILE)" ]; then \
+		echo "$(YELLOW)创建 Cargo 配置文件...$(RESET)"; \
+		echo '[target.x86_64-pc-windows-msvc]' > $(CARGO_CONFIG_FILE); \
+		echo 'linker = "lld-link"' >> $(CARGO_CONFIG_FILE); \
+		echo 'rustflags = [' >> $(CARGO_CONFIG_FILE); \
+		echo '  "-Lnative=$(XWIN_DIR)/crt/lib/x86_64",' >> $(CARGO_CONFIG_FILE); \
+		echo '  "-Lnative=$(XWIN_DIR)/sdk/lib/um/x86_64",' >> $(CARGO_CONFIG_FILE); \
+		echo '  "-Lnative=$(XWIN_DIR)/sdk/lib/ucrt/x86_64",' >> $(CARGO_CONFIG_FILE); \
+		echo ']' >> $(CARGO_CONFIG_FILE); \
+		echo '' >> $(CARGO_CONFIG_FILE); \
+		echo '[env]' >> $(CARGO_CONFIG_FILE); \
+		echo 'CC_x86_64_pc_windows_msvc = "clang-cl --target=x86_64-pc-windows-msvc"' >> $(CARGO_CONFIG_FILE); \
+		echo 'CXX_x86_64_pc_windows_msvc = "clang-cl --target=x86_64-pc-windows-msvc"' >> $(CARGO_CONFIG_FILE); \
+		echo 'AR_x86_64_pc_windows_msvc = "llvm-lib"' >> $(CARGO_CONFIG_FILE); \
+		echo "$(GREEN)✅ Cargo 配置文件已创建$(RESET)"; \
+	else \
+		echo "$(GREEN)Cargo 配置文件已存在$(RESET)"; \
+	fi
+
+.PHONY: setup-windows-cross
+setup-windows-cross: setup-targets setup-xwin-sdk setup-cargo-config ## 设置 Windows 交叉编译环境
+	@echo "$(GREEN)✅ Windows 交叉编译环境配置完成$(RESET)"
 
 .PHONY: update
 update: ## 更新依赖
@@ -177,17 +182,6 @@ update: ## 更新依赖
 	@echo "$(BLUE)更新 Rust 依赖...$(RESET)"
 	cd src-tauri && cargo update
 	@echo "$(GREEN)✅ 依赖更新完成$(RESET)"
-
-.PHONY: info
-info: ## 显示项目信息
-	@echo "$(CYAN)项目信息:$(RESET)"
-	@echo "  项目名称: $(PROJECT_NAME)"
-	@echo "  版本: $(VERSION)"
-	@echo "  平台: $(PLATFORM)"
-	@echo "  Node.js 版本: $(shell node --version)"
-	@echo "  npm 版本: $(shell npm --version)"
-	@echo "  Rust 版本: $(shell rustc --version)"
-	@echo "  Tauri CLI 版本: $(shell npm run tauri -- --version 2>/dev/null | head -1)"
 
 .PHONY: doctor
 doctor: ## 检查开发环境
@@ -198,21 +192,17 @@ doctor: ## 检查开发环境
 	@echo "Cargo: $(shell cargo --version || echo '$(RED)未安装$(RESET)')"
 	@echo "Tauri CLI: $(shell npm run tauri -- --version 2>/dev/null | head -1 || echo '$(RED)未安装$(RESET)')"
 
-# 打包分发
-.PHONY: package
-package: build-app ## 创建分发包
-	@echo "$(BLUE)创建分发包...$(RESET)"
-	mkdir -p dist/$(VERSION)
-	cp -r src-tauri/target/release/bundle/* dist/$(VERSION)/
-	@echo "$(GREEN)✅ 分发包创建完成: dist/$(VERSION)/$(RESET)"
-
-# 开发工具
-.PHONY: tauri-info
-tauri-info: ## 显示 Tauri 信息
+.PHONY: info
+info: ## 显示详细项目和环境信息
+	@echo "$(CYAN)项目信息:$(RESET)"
+	@echo "  项目名称: $(PROJECT_NAME)"
+	@echo "  版本: $(VERSION)"
+	@echo "  平台: $(PLATFORM)"
+	@echo ""
 	npm run tauri info
 
-.PHONY: tauri-icon
-tauri-icon: ## 生成应用图标（需要 icon.png 文件）
+.PHONY: icon
+icon: ## 生成应用图标（需要 icon.png 文件）
 	npm run tauri icon
 
 # 版本发布
@@ -247,23 +237,17 @@ release-major: ## 发布主要版本 (0.1.0 -> 1.0.0)
 	echo "$(BLUE)发布主要版本: $$CURRENT_VERSION -> $$MAJOR_VERSION$(RESET)"; \
 	./scripts/release.sh $$MAJOR_VERSION major
 
-.PHONY: build-release
-build-release: ## 构建发布包（所有平台）
-	@echo "$(BLUE)构建发布包...$(RESET)"
-	$(MAKE) clean
-	$(MAKE) build-all
-	$(MAKE) package-release
-	@echo "$(GREEN)✅ 发布包构建完成$(RESET)"
-
-.PHONY: package-release
-package-release: ## 打包发布文件
+.PHONY: package
+package: build-all ## 打包发布文件
 	@echo "$(BLUE)打包发布文件...$(RESET)"
 	mkdir -p releases/$(VERSION)
-	find src-tauri/target -name "*.dmg" -exec cp {} releases/$(VERSION)/ \;
-	find src-tauri/target -name "*.app.tar.gz" -exec cp {} releases/$(VERSION)/ \;
-	find src-tauri/target -name "*.msi" -exec cp {} releases/$(VERSION)/ \;
-	find src-tauri/target -name "*.AppImage" -exec cp {} releases/$(VERSION)/ \;
-	find src-tauri/target -name "*.deb" -exec cp {} releases/$(VERSION)/ \;
+	@echo "$(BLUE)查找并复制发布文件...$(RESET)"
+	-cp src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg releases/$(VERSION)/ 2>/dev/null || true
+	-cp src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg releases/$(VERSION)/ 2>/dev/null || true
+	-cp src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*-setup.exe releases/$(VERSION)/ 2>/dev/null || true
+	-cp src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi releases/$(VERSION)/ 2>/dev/null || true
+	@echo "$(BLUE)发布文件列表:$(RESET)"
+	@ls -la releases/$(VERSION)/
 	@echo "$(GREEN)✅ 发布包已保存到 releases/$(VERSION)/$(RESET)"
 
 # 更新 Homebrew Cask
@@ -350,13 +334,3 @@ update-homebrew: ## 更新 Homebrew Cask (需要设置 GH_PAT 环境变量)
 	@echo "$(BLUE)清理临时文件...$(RESET)"
 	@rm -rf tmp
 	@echo "$(GREEN)✅ Homebrew cask 更新流程完成$(RESET)"
-
-# 快速命令
-.PHONY: quick-dev
-quick-dev: install dev ## 快速开始开发（安装依赖+启动开发）
-
-.PHONY: quick-build
-quick-build: clean build-app ## 快速构建（清理+构建）
-
-.PHONY: quick-release
-quick-release: clean-all install build-release ## 快速发布（完全清理+安装+构建发布包） 

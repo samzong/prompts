@@ -9,9 +9,13 @@ lerna-debug.log*
 
 node_modules
 dist
+releases
 dist-ssr
 *.local
 .xwin-cache
+
+# Windows 交叉编译工具
+.cargo/config.toml
 
 # Editor directories and files
 .vscode/*

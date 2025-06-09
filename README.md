@@ -22,13 +22,7 @@ https://github.com/user-attachments/assets/50b02fe6-e81b-4cbb-bf89-c5fb9997ca1b
 
 ## 🎯 Core Features
 
-### Main Window
-
-- **Left Click** → Opens/toggles Quick Picker (Search Overlay)
-- **Right Click** → Shows/toggles main window (Full Manager)
-- Application supports both main window and system tray access
-
-### Menu Bar Integration
+### System Tray Integration
 
 - **Left Click** → Opens/toggles Quick Picker (Search Overlay)
 - **Right Click** → Shows/toggles main window (Full Manager)
@@ -56,6 +50,19 @@ https://github.com/user-attachments/assets/50b02fe6-e81b-4cbb-bf89-c5fb9997ca1b
 
 ## Development
 
+### Getting Started
+- `npm install` - Install dependencies
 - `npm run tauri:dev` - Start Tauri development mode
-- `make build-all` - Build for all platforms
-- `make build-macos` - Build for macOS
+
+### Building
+- `make build` - Build for current platform
+- `make build-all` - Build for all platforms (macOS Intel/ARM64, Windows)
+- `make build-macos-arm64` - Build for macOS Apple Silicon
+- `make build-macos-intel` - Build for macOS Intel
+- `make build-windows` - Build for Windows (auto-setup cross-compilation)
+
+### Windows Cross-compilation
+On macOS, Windows builds are fully automated:
+- First time: `make build-windows` (automatically installs xwin and Windows SDK)
+- Subsequent builds: `make build-windows` (uses cached dependencies)
+- Clean environment: `make clean-all` (removes all cached dependencies)

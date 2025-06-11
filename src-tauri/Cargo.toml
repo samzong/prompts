@@ -27,6 +27,7 @@ tauri-plugin-os = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tauri-plugin-clipboard-manager = "2"
+tauri-plugin-process = "2"
 
 [profile.dev]
 incremental = true
@@ -37,3 +38,6 @@ lto = true
 opt-level = "s"
 panic = "abort"
 strip = true
+
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-updater = "2"

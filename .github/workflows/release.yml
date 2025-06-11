@@ -10,11 +10,11 @@ permissions:
   packages: write
 
 jobs:
-  create-release:
+  get-version:
     runs-on: ubuntu-latest
     outputs:
-      upload_url: ${{ steps.create_release.outputs.upload_url }}
       version: ${{ steps.get_version.outputs.version }}
+      changelog: ${{ steps.changelog.outputs.changelog }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -42,33 +42,8 @@ jobs:
           echo "$CHANGELOG" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Create Release
-        id: create_release
-        uses: softprops/action-gh-release@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.ref }}
-          name: Release ${{ steps.get_version.outputs.version }}
-          body: |
-            ## 🎉 版本 ${{ steps.get_version.outputs.version }} 发布
-
-            ### 更改内容
-            ${{ steps.changelog.outputs.changelog }}
-
-            ### 下载
-            请选择适合您操作系统的安装包：
-            - **macOS**: `.dmg` 或 `.app.tar.gz`
-            - **Windows**: `.msi`
-
-            ### 安装说明
-            - macOS: 下载 `.dmg` 文件，双击安装
-            - Windows: 下载 `.msi` 文件，双击安装
-          draft: false
-          prerelease: false
-
-  build-and-upload:
-    needs: create-release
+  build-artifacts:
+    needs: get-version
     strategy:
       matrix:
         include:
@@ -130,8 +105,8 @@ jobs:
             src-tauri/target/${{ matrix.target }}/release/bundle/msi/*.msi.sig
           if-no-files-found: ignore
 
-  upload-to-release:
-    needs: [create-release, build-and-upload]
+  create-release:
+    needs: [get-version, build-artifacts]
     runs-on: ubuntu-latest
     steps:
       - name: Download all artifacts
@@ -149,35 +124,52 @@ jobs:
           # 创建更新清单文件 - 为不同平台配置合适的更新包
           cat > latest.json << EOF
           {
-            "version": "${{ needs.create-release.outputs.version }}",
+            "version": "${{ needs.get-version.outputs.version }}",
             "pub_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
             "platforms": {
               "darwin-aarch64": {
-                "url": "https://github.com/${{ github.repository }}/releases/download/v${{ needs.create-release.outputs.version }}/Prompts.app.tar.gz",
+                "url": "https://github.com/${{ github.repository }}/releases/download/v${{ needs.get-version.outputs.version }}/Prompts.app.tar.gz",
                 "signature": "$(cat artifacts/macOS*ARM64*/macos/Prompts.app.tar.gz.sig 2>/dev/null || echo '')"
               },
               "darwin-x86_64": {
-                "url": "https://github.com/${{ github.repository }}/releases/download/v${{ needs.create-release.outputs.version }}/Prompts.app.tar.gz",
+                "url": "https://github.com/${{ github.repository }}/releases/download/v${{ needs.get-version.outputs.version }}/Prompts.app.tar.gz",
                 "signature": "$(cat artifacts/macOS*Intel*/macos/Prompts.app.tar.gz.sig 2>/dev/null || echo '')"
               },
               "windows-x86_64": {
-                "url": "https://github.com/${{ github.repository }}/releases/download/v${{ needs.create-release.outputs.version }}/Prompts_${{ needs.create-release.outputs.version }}_x64_en-US.msi",
-                "signature": "$(cat artifacts/Windows*/msi/Prompts_${{ needs.create-release.outputs.version }}_x64_en-US.msi.sig 2>/dev/null || echo '')"
+                "url": "https://github.com/${{ github.repository }}/releases/download/v${{ needs.get-version.outputs.version }}/Prompts_${{ needs.get-version.outputs.version }}_x64_en-US.msi",
+                "signature": "$(cat artifacts/Windows*/msi/Prompts_${{ needs.get-version.outputs.version }}_x64_en-US.msi.sig 2>/dev/null || echo '')"
               }
             },
-            "notes": "Release ${{ needs.create-release.outputs.version }}"
+            "notes": "Release ${{ needs.get-version.outputs.version }}"
           }
           EOF
           
           echo "Generated latest.json:"
           cat latest.json
 
-      - name: Upload artifacts to release
+      - name: Create Release and Upload artifacts
         uses: softprops/action-gh-release@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: v${{ needs.create-release.outputs.version }}
+          tag_name: ${{ github.ref }}
+          name: Release ${{ needs.get-version.outputs.version }}
+          body: |
+            ## 🎉 版本 ${{ needs.get-version.outputs.version }} 发布
+
+            ### 更改内容
+            ${{ needs.get-version.outputs.changelog }}
+
+            ### 下载
+            请选择适合您操作系统的安装包：
+            - **macOS**: `.dmg` 或 `.app.tar.gz`
+            - **Windows**: `.msi`
+
+            ### 安装说明
+            - macOS: 下载 `.dmg` 文件，双击安装
+            - Windows: 下载 `.msi` 文件，双击安装
+          draft: false
+          prerelease: false
           files: |
             artifacts/**/*.dmg
             artifacts/**/*.tar.gz
@@ -187,7 +179,7 @@ jobs:
             latest.json
 
   trigger-homebrew-update:
-    needs: [create-release, build-and-upload]
+    needs: [get-version, create-release]
     runs-on: ubuntu-latest
     if: ${{ !github.event.release.prerelease }}
     
@@ -198,4 +190,4 @@ jobs:
             -H "Authorization: token ${{ secrets.GH_PAT }}" \
             -H "Accept: application/vnd.github.v3+json" \
             https://api.github.com/repos/${{ github.repository }}/dispatches \
-            -d '{"event_type":"trigger-homebrew-update","client_payload":{"version":"v${{ needs.create-release.outputs.version }}"}}' 
+            -d '{"event_type":"trigger-homebrew-update","client_payload":{"version":"v${{ needs.get-version.outputs.version }}"}}' 

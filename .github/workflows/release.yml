@@ -146,13 +146,25 @@ jobs:
 
       - name: Generate latest.json for updater
         run: |
-          # 创建更新清单文件
+          # 创建更新清单文件 - 为不同平台配置合适的更新包
           cat > latest.json << EOF
           {
             "version": "${{ needs.create-release.outputs.version }}",
             "pub_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-            "url": "https://github.com/${{ github.repository }}/releases/download/v${{ needs.create-release.outputs.version }}/",
-            "signature": "",
+            "platforms": {
+              "darwin-aarch64": {
+                "url": "https://github.com/${{ github.repository }}/releases/download/v${{ needs.create-release.outputs.version }}/Prompts.app.tar.gz",
+                "signature": "$(cat artifacts/macOS*ARM64*/macos/Prompts.app.tar.gz.sig 2>/dev/null || echo '')"
+              },
+              "darwin-x86_64": {
+                "url": "https://github.com/${{ github.repository }}/releases/download/v${{ needs.create-release.outputs.version }}/Prompts.app.tar.gz",
+                "signature": "$(cat artifacts/macOS*Intel*/macos/Prompts.app.tar.gz.sig 2>/dev/null || echo '')"
+              },
+              "windows-x86_64": {
+                "url": "https://github.com/${{ github.repository }}/releases/download/v${{ needs.create-release.outputs.version }}/Prompts_${{ needs.create-release.outputs.version }}_x64_en-US.msi",
+                "signature": "$(cat artifacts/Windows*/msi/Prompts_${{ needs.create-release.outputs.version }}_x64_en-US.msi.sig 2>/dev/null || echo '')"
+              }
+            },
             "notes": "Release ${{ needs.create-release.outputs.version }}"
           }
           EOF
@@ -168,7 +180,6 @@ jobs:
           tag_name: v${{ needs.create-release.outputs.version }}
           files: |
             artifacts/**/*.dmg
-            artifacts/**/*.dmg.sig
             artifacts/**/*.tar.gz
             artifacts/**/*.tar.gz.sig
             artifacts/**/*.msi

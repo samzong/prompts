@@ -119,6 +119,37 @@ jobs:
           echo "Artifacts directory structure:"
           find artifacts -type f -name "*" | head -20
 
+      - name: Rename tar.gz files to include platform
+        run: |
+          echo "Renaming tar.gz files to include platform identifier..."
+          
+          # 重命名 ARM64 tar.gz 文件
+          if [ -f artifacts/macOS*ARM64*/macos/Prompts.app.tar.gz ]; then
+            cp artifacts/macOS*ARM64*/macos/Prompts.app.tar.gz artifacts/Prompts_${{ needs.get-version.outputs.version }}_aarch64.app.tar.gz
+            echo "✅ Renamed ARM64 tar.gz to Prompts_${{ needs.get-version.outputs.version }}_aarch64.app.tar.gz"
+          fi
+          
+          # 重命名 ARM64 tar.gz.sig 文件
+          if [ -f artifacts/macOS*ARM64*/macos/Prompts.app.tar.gz.sig ]; then
+            cp artifacts/macOS*ARM64*/macos/Prompts.app.tar.gz.sig artifacts/Prompts_${{ needs.get-version.outputs.version }}_aarch64.app.tar.gz.sig
+            echo "✅ Renamed ARM64 tar.gz.sig to Prompts_${{ needs.get-version.outputs.version }}_aarch64.app.tar.gz.sig"
+          fi
+          
+          # 重命名 Intel tar.gz 文件
+          if [ -f artifacts/macOS*Intel*/macos/Prompts.app.tar.gz ]; then
+            cp artifacts/macOS*Intel*/macos/Prompts.app.tar.gz artifacts/Prompts_${{ needs.get-version.outputs.version }}_x64.app.tar.gz
+            echo "✅ Renamed Intel tar.gz to Prompts_${{ needs.get-version.outputs.version }}_x64.app.tar.gz"
+          fi
+          
+          # 重命名 Intel tar.gz.sig 文件
+          if [ -f artifacts/macOS*Intel*/macos/Prompts.app.tar.gz.sig ]; then
+            cp artifacts/macOS*Intel*/macos/Prompts.app.tar.gz.sig artifacts/Prompts_${{ needs.get-version.outputs.version }}_x64.app.tar.gz.sig
+            echo "✅ Renamed Intel tar.gz.sig to Prompts_${{ needs.get-version.outputs.version }}_x64.app.tar.gz.sig"
+          fi
+          
+          echo "Renamed files:"
+          ls -la artifacts/*.tar.gz* 2>/dev/null || echo "No tar.gz files found in root"
+
       - name: Generate latest.json for updater
         run: |
           # 创建更新清单文件 - 为不同平台配置合适的更新包
@@ -128,12 +159,12 @@ jobs:
             "pub_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
             "platforms": {
               "darwin-aarch64": {
-                "url": "https://github.com/${{ github.repository }}/releases/download/v${{ needs.get-version.outputs.version }}/Prompts.app.tar.gz",
-                "signature": "$(cat artifacts/macOS*ARM64*/macos/Prompts.app.tar.gz.sig 2>/dev/null || echo '')"
+                "url": "https://github.com/${{ github.repository }}/releases/download/v${{ needs.get-version.outputs.version }}/Prompts_${{ needs.get-version.outputs.version }}_aarch64.app.tar.gz",
+                "signature": "$(cat artifacts/Prompts_${{ needs.get-version.outputs.version }}_aarch64.app.tar.gz.sig 2>/dev/null || echo '')"
               },
               "darwin-x86_64": {
-                "url": "https://github.com/${{ github.repository }}/releases/download/v${{ needs.get-version.outputs.version }}/Prompts.app.tar.gz",
-                "signature": "$(cat artifacts/macOS*Intel*/macos/Prompts.app.tar.gz.sig 2>/dev/null || echo '')"
+                "url": "https://github.com/${{ github.repository }}/releases/download/v${{ needs.get-version.outputs.version }}/Prompts_${{ needs.get-version.outputs.version }}_x64.app.tar.gz",
+                "signature": "$(cat artifacts/Prompts_${{ needs.get-version.outputs.version }}_x64.app.tar.gz.sig 2>/dev/null || echo '')"
               },
               "windows-x86_64": {
                 "url": "https://github.com/${{ github.repository }}/releases/download/v${{ needs.get-version.outputs.version }}/Prompts_${{ needs.get-version.outputs.version }}_x64_en-US.msi",
@@ -172,10 +203,12 @@ jobs:
           prerelease: false
           files: |
             artifacts/**/*.dmg
-            artifacts/**/*.tar.gz
-            artifacts/**/*.tar.gz.sig
             artifacts/**/*.msi
             artifacts/**/*.msi.sig
+            artifacts/Prompts_${{ needs.get-version.outputs.version }}_aarch64.app.tar.gz
+            artifacts/Prompts_${{ needs.get-version.outputs.version }}_aarch64.app.tar.gz.sig
+            artifacts/Prompts_${{ needs.get-version.outputs.version }}_x64.app.tar.gz
+            artifacts/Prompts_${{ needs.get-version.outputs.version }}_x64.app.tar.gz.sig
             latest.json
 
   trigger-homebrew-update:

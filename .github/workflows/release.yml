@@ -113,6 +113,8 @@ jobs:
 
       - name: Build Tauri app
         run: npm run tauri build -- --target ${{ matrix.target }}
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -120,8 +122,11 @@ jobs:
           name: ${{ matrix.name }}-${{ needs.create-release.outputs.version }}
           path: |
             src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
+            src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg.sig
             src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.tar.gz
+            src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.tar.gz.sig
             src-tauri/target/${{ matrix.target }}/release/bundle/msi/*.msi
+            src-tauri/target/${{ matrix.target }}/release/bundle/msi/*.msi.sig
           if-no-files-found: ignore
 
   upload-to-release:
@@ -138,6 +143,22 @@ jobs:
           echo "Artifacts directory structure:"
           find artifacts -type f -name "*" | head -20
 
+      - name: Generate latest.json for updater
+        run: |
+          # 创建更新清单文件
+          cat > latest.json << EOF
+          {
+            "version": "${{ needs.create-release.outputs.version }}",
+            "pub_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "url": "https://github.com/${{ github.repository }}/releases/download/v${{ needs.create-release.outputs.version }}/",
+            "signature": "",
+            "notes": "Release ${{ needs.create-release.outputs.version }}"
+          }
+          EOF
+          
+          echo "Generated latest.json:"
+          cat latest.json
+
       - name: Upload artifacts to release
         uses: softprops/action-gh-release@v2
         env:
@@ -146,8 +167,12 @@ jobs:
           tag_name: v${{ needs.create-release.outputs.version }}
           files: |
             artifacts/**/*.dmg
+            artifacts/**/*.dmg.sig
             artifacts/**/*.tar.gz
+            artifacts/**/*.tar.gz.sig
             artifacts/**/*.msi
+            artifacts/**/*.msi.sig
+            latest.json
 
   trigger-homebrew-update:
     needs: [create-release, build-and-upload]

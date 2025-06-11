@@ -1,21 +1,25 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-use tauri::{WebviewUrl, WebviewWindowBuilder, Manager, WindowEvent};
-use tauri::tray::{TrayIconBuilder, MouseButton, MouseButtonState};
-use std::sync::{Mutex, OnceLock};
 use std::collections::HashMap;
+use std::sync::{Mutex, OnceLock};
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder};
+use tauri::{Manager, WebviewUrl, WebviewWindowBuilder, WindowEvent};
 
 // 全局状态存储当前注册的快捷键
 static REGISTERED_SHORTCUTS: OnceLock<Mutex<HashMap<String, String>>> = OnceLock::new();
 
 #[tauri::command]
-async fn update_global_shortcut(app: tauri::AppHandle, shortcut: String, enabled: bool) -> Result<(), String> {
+async fn update_global_shortcut(
+    app: tauri::AppHandle,
+    shortcut: String,
+    enabled: bool,
+) -> Result<(), String> {
     #[cfg(desktop)]
     {
         use tauri_plugin_global_shortcut::GlobalShortcutExt;
-        
+
         // 获取或初始化全局状态
         let registered_mutex = REGISTERED_SHORTCUTS.get_or_init(|| Mutex::new(HashMap::new()));
-        
+
         // 解注册所有现有快捷键
         let mut registered = registered_mutex.lock().map_err(|e| e.to_string())?;
         for (_, old_shortcut) in registered.iter() {
@@ -25,52 +29,59 @@ async fn update_global_shortcut(app: tauri::AppHandle, shortcut: String, enabled
             }
         }
         registered.clear();
-        
+
         // 如果启用，注册新的快捷键
         if enabled && !shortcut.is_empty() {
             match parse_shortcut_string(&shortcut) {
                 Ok(parsed_shortcut) => {
-                    app.global_shortcut().register(parsed_shortcut)
+                    app.global_shortcut()
+                        .register(parsed_shortcut)
                         .map_err(|e| format!("Failed to register shortcut: {}", e))?;
                     registered.insert("quickPicker".to_string(), shortcut);
                 }
-                Err(e) => return Err(format!("Invalid shortcut format: {}", e))
+                Err(e) => return Err(format!("Invalid shortcut format: {}", e)),
             }
         }
     }
-    
+
     Ok(())
 }
 
 // 解析快捷键字符串
 #[cfg(desktop)]
-fn parse_shortcut_string(shortcut_str: &str) -> Result<tauri_plugin_global_shortcut::Shortcut, String> {
+fn parse_shortcut_string(
+    shortcut_str: &str,
+) -> Result<tauri_plugin_global_shortcut::Shortcut, String> {
     use tauri_plugin_global_shortcut::{Code, Modifiers, Shortcut};
-    
+
     let parts: Vec<&str> = shortcut_str.split('+').collect();
     if parts.is_empty() {
         return Err("Empty shortcut".to_string());
     }
-    
+
     let mut modifiers = Modifiers::empty();
     let key_str = parts.last().unwrap().trim();
-    
-    for part in &parts[..parts.len()-1] {
+
+    for part in &parts[..parts.len() - 1] {
         match part.trim() {
             "CommandOrControl" | "Cmd" | "Command" => {
                 #[cfg(target_os = "macos")]
-                { modifiers |= Modifiers::META; }
+                {
+                    modifiers |= Modifiers::META;
+                }
                 #[cfg(not(target_os = "macos"))]
-                { modifiers |= Modifiers::CONTROL; }
-            },
+                {
+                    modifiers |= Modifiers::CONTROL;
+                }
+            }
             "Ctrl" | "Control" => modifiers |= Modifiers::CONTROL,
             "Alt" | "Option" => modifiers |= Modifiers::ALT,
             "Shift" => modifiers |= Modifiers::SHIFT,
             "Meta" => modifiers |= Modifiers::META,
-            _ => return Err(format!("Unknown modifier: {}", part.trim()))
+            _ => return Err(format!("Unknown modifier: {}", part.trim())),
         }
     }
-    
+
     let code = match key_str.to_uppercase().as_str() {
         "A" => Code::KeyA,
         "B" => Code::KeyB,
@@ -114,9 +125,9 @@ fn parse_shortcut_string(shortcut_str: &str) -> Result<tauri_plugin_global_short
         "ESCAPE" => Code::Escape,
         "BACKSPACE" => Code::Backspace,
         "DELETE" => Code::Delete,
-        _ => return Err(format!("Unknown key: {}", key_str))
+        _ => return Err(format!("Unknown key: {}", key_str)),
     };
-    
+
     Ok(Shortcut::new(Some(modifiers), code))
 }
 
@@ -161,7 +172,7 @@ async fn toggle_quick_picker(app: tauri::AppHandle) -> Result<(), String> {
         let window = WebviewWindowBuilder::new(
             &app,
             "quick_picker",
-            WebviewUrl::App("quick_picker.html".into())
+            WebviewUrl::App("quick_picker.html".into()),
         )
         .title("Quick Picker")
         .inner_size(500.0, 300.0)
@@ -178,26 +189,32 @@ async fn toggle_quick_picker(app: tauri::AppHandle) -> Result<(), String> {
         // 设置窗口聚焦
         window.set_focus().map_err(|e| e.to_string())?;
     }
-    
+
     Ok(())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_os::init())
-
-        .invoke_handler(tauri::generate_handler![toggle_quick_picker, toggle_main_window, quit_app, update_global_shortcut])
+        .invoke_handler(tauri::generate_handler![
+            toggle_quick_picker,
+            toggle_main_window,
+            quit_app,
+            update_global_shortcut
+        ])
         .setup(|app| {
             // 注册全局快捷键
             #[cfg(desktop)]
             {
                 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
-                
+
                 // 注册快捷键插件
                 app.handle().plugin(
                     tauri_plugin_global_shortcut::Builder::new()
@@ -213,32 +230,37 @@ pub fn run() {
                         })
                         .build(),
                 )?;
-                
+
                 // 注册默认快捷键
                 if let Ok(default_shortcut) = parse_shortcut_string("CommandOrControl+Shift+P") {
                     let _ = app.global_shortcut().register(default_shortcut);
-                    
+
                     // 初始化注册表
-                    let registered_mutex = REGISTERED_SHORTCUTS.get_or_init(|| Mutex::new(HashMap::new()));
+                    let registered_mutex =
+                        REGISTERED_SHORTCUTS.get_or_init(|| Mutex::new(HashMap::new()));
                     if let Ok(mut registered) = registered_mutex.lock() {
-                        registered.insert("quickPicker".to_string(), "CommandOrControl+Shift+P".to_string());
+                        registered.insert(
+                            "quickPicker".to_string(),
+                            "CommandOrControl+Shift+P".to_string(),
+                        );
                     }
                 }
             }
 
             // 设置系统托盘
             let app_handle = app.handle().clone();
-            
+
             // 加载托盘图标
-            let icon = app.default_window_icon()
+            let icon = app
+                .default_window_icon()
                 .ok_or("Failed to get default window icon")?;
-            
+
             let _tray = TrayIconBuilder::with_id("main-tray")
                 .tooltip("Prompts")
                 .icon(icon.clone())
                 .on_tray_icon_event(move |_tray, event| {
                     use tauri::tray::TrayIconEvent;
-                    
+
                     match event {
                         TrayIconEvent::Click {
                             button: MouseButton::Left,

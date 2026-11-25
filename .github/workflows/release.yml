@@ -4,46 +4,74 @@ on:
   push:
     tags:
       - 'v*'
+    branches:
+      - main
+  pull_request:
 
 permissions:
-  contents: write
-  packages: write
+  contents: read
 
 jobs:
   get-version:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.get_version.outputs.version }}
-      changelog: ${{ steps.changelog.outputs.changelog }}
+      is_prerelease: ${{ steps.get_version.outputs.is_prerelease }}
+      make_latest: ${{ steps.get_version.outputs.make_latest }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Get version
+      - name: Verify SemVer tag and manifest versions
         id: get_version
-        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
-
-      - name: Generate changelog
-        id: changelog
+        env:
+          RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
         run: |
-          # 获取上一个标签
-          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
-          
-          # 生成更改日志
-          if [ "$PREV_TAG" != "" ]; then
-            CHANGELOG=$(git log --pretty=format:"- %s" $PREV_TAG..HEAD)
-          else
-            CHANGELOG="首次发布"
+          set -euo pipefail
+          tag="${RELEASE_TAG:-v$(python3 -c 'import json; print(json.load(open("package.json"))["version"])')}"
+          python3 scripts/check-release-tag.py "$tag"
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            test "$(git rev-parse HEAD)" = "$(git rev-parse "refs/tags/$tag^{commit}")"
           fi
-          
-          echo "changelog<<EOF" >> $GITHUB_OUTPUT
-          echo "$CHANGELOG" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Generate release notes
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: orhun/git-cliff-action@v4
+        with:
+          version: v2.14.1
+          args: --current --output release-notes.md
+
+      - name: Require release notes
+        if: startsWith(github.ref, 'refs/tags/')
+        run: grep -Eq '^\* .+' release-notes.md
+
+      - name: Upload release notes
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-notes
+          path: release-notes.md
+          if-no-files-found: error
+
+  check:
+    needs: get-version
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test --locked --manifest-path src-tauri/Cargo.toml
 
   build-artifacts:
-    needs: get-version
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [get-version, check]
     strategy:
       matrix:
         include:
@@ -106,6 +134,8 @@ jobs:
           if-no-files-found: ignore
 
   create-release:
+    permissions:
+      contents: write
     needs: [get-version, build-artifacts]
     runs-on: ubuntu-latest
     steps:
@@ -120,39 +150,21 @@ jobs:
           find artifacts -type f -name "*" | head -20
 
       - name: Rename tar.gz files to include platform
+        env:
+          RELEASE_VERSION: ${{ needs.get-version.outputs.version }}
         run: |
-          echo "Renaming tar.gz files to include platform identifier..."
-          
-          # 重命名 ARM64 tar.gz 文件
-          if [ -f artifacts/macOS*ARM64*/macos/Prompts.app.tar.gz ]; then
-            cp artifacts/macOS*ARM64*/macos/Prompts.app.tar.gz artifacts/Prompts_${{ needs.get-version.outputs.version }}_aarch64.app.tar.gz
-            echo "✅ Renamed ARM64 tar.gz to Prompts_${{ needs.get-version.outputs.version }}_aarch64.app.tar.gz"
-          fi
-          
-          # 重命名 ARM64 tar.gz.sig 文件
-          if [ -f artifacts/macOS*ARM64*/macos/Prompts.app.tar.gz.sig ]; then
-            cp artifacts/macOS*ARM64*/macos/Prompts.app.tar.gz.sig artifacts/Prompts_${{ needs.get-version.outputs.version }}_aarch64.app.tar.gz.sig
-            echo "✅ Renamed ARM64 tar.gz.sig to Prompts_${{ needs.get-version.outputs.version }}_aarch64.app.tar.gz.sig"
-          fi
-          
-          # 重命名 Intel tar.gz 文件
-          if [ -f artifacts/macOS*Intel*/macos/Prompts.app.tar.gz ]; then
-            cp artifacts/macOS*Intel*/macos/Prompts.app.tar.gz artifacts/Prompts_${{ needs.get-version.outputs.version }}_x64.app.tar.gz
-            echo "✅ Renamed Intel tar.gz to Prompts_${{ needs.get-version.outputs.version }}_x64.app.tar.gz"
-          fi
-          
-          # 重命名 Intel tar.gz.sig 文件
-          if [ -f artifacts/macOS*Intel*/macos/Prompts.app.tar.gz.sig ]; then
-            cp artifacts/macOS*Intel*/macos/Prompts.app.tar.gz.sig artifacts/Prompts_${{ needs.get-version.outputs.version }}_x64.app.tar.gz.sig
-            echo "✅ Renamed Intel tar.gz.sig to Prompts_${{ needs.get-version.outputs.version }}_x64.app.tar.gz.sig"
-          fi
-          
-          echo "Renamed files:"
-          ls -la artifacts/*.tar.gz* 2>/dev/null || echo "No tar.gz files found in root"
+          shopt -s nullglob
+          for archive in artifacts/macOS*ARM64*/macos/Prompts.app.tar.gz{,.sig}; do
+            suffix="${archive##*Prompts.app}"
+            cp "$archive" "artifacts/Prompts_${RELEASE_VERSION}_aarch64.app$suffix"
+          done
+          for archive in artifacts/macOS*Intel*/macos/Prompts.app.tar.gz{,.sig}; do
+            suffix="${archive##*Prompts.app}"
+            cp "$archive" "artifacts/Prompts_${RELEASE_VERSION}_x64.app$suffix"
+          done
 
       - name: Generate latest.json for updater
         run: |
-          # 创建更新清单文件 - 为不同平台配置合适的更新包
           cat > latest.json << EOF
           {
             "version": "${{ needs.get-version.outputs.version }}",
@@ -185,22 +197,10 @@ jobs:
         with:
           tag_name: ${{ github.ref }}
           name: Release ${{ needs.get-version.outputs.version }}
-          body: |
-            ## 🎉 版本 ${{ needs.get-version.outputs.version }} 发布
-
-            ### 更改内容
-            ${{ needs.get-version.outputs.changelog }}
-
-            ### 下载
-            请选择适合您操作系统的安装包：
-            - **macOS**: `.dmg` 或 `.app.tar.gz`
-            - **Windows**: `.msi`
-
-            ### 安装说明
-            - macOS: 下载 `.dmg` 文件，双击安装
-            - Windows: 下载 `.msi` 文件，双击安装
+          body_path: artifacts/release-notes/release-notes.md
           draft: false
-          prerelease: false
+          prerelease: ${{ needs.get-version.outputs.is_prerelease == 'true' }}
+          make_latest: ${{ needs.get-version.outputs.make_latest }}
           files: |
             artifacts/**/*.dmg
             artifacts/**/*.msi
@@ -210,17 +210,3 @@ jobs:
             artifacts/Prompts_${{ needs.get-version.outputs.version }}_x64.app.tar.gz
             artifacts/Prompts_${{ needs.get-version.outputs.version }}_x64.app.tar.gz.sig
             latest.json
-
-  trigger-homebrew-update:
-    needs: [get-version, create-release]
-    runs-on: ubuntu-latest
-    if: ${{ !github.event.release.prerelease }}
-    
-    steps:
-      - name: Trigger Homebrew update
-        run: |
-          curl -X POST \
-            -H "Authorization: token ${{ secrets.GH_PAT }}" \
-            -H "Accept: application/vnd.github.v3+json" \
-            https://api.github.com/repos/${{ github.repository }}/dispatches \
-            -d '{"event_type":"trigger-homebrew-update","client_payload":{"version":"v${{ needs.get-version.outputs.version }}"}}' 

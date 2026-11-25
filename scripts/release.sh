@@ -98,7 +98,7 @@ fi
 git-cliff --tag "v$NEW_VERSION" --output CHANGELOG.md
 
 echo -e "${BLUE}📦 提交版本更改...${NC}"
-git add package.json src-tauri/Cargo.toml src-tauri/tauri.conf.json Makefile CHANGELOG.md
+git add package.json src-tauri/Cargo.toml src-tauri/Cargo.lock src-tauri/tauri.conf.json Makefile CHANGELOG.md
 git commit -m "chore: bump version to $NEW_VERSION"
 
 # 创建标签

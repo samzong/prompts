@@ -196,8 +196,12 @@ The project supports building for multiple platforms:
 - Use `make build-all` for all platforms
 
 ### Release Process
-- Use `scripts/release.sh` for automated releases
-- Supports Homebrew cask updates via `make update-homebrew`
+- Use `scripts/release.sh` for automated releases. Install git-cliff 2.14.1 first.
+- The script writes `CHANGELOG.md` before the release commit and tag.
+- To inspect notes without publishing, run `git-cliff --current` at a release tag.
+- Release CI rejects invalid tags, unequal manifest versions, and notes without change entries.
+- Live release publication was not tested during the baseline alignment.
+- Homebrew updates run in `samzong/homebrew-tap`.
 - Build artifacts are stored in `releases/` directory
 
 ## Security Considerations
